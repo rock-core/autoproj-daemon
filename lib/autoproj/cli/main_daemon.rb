@@ -1,4 +1,5 @@
 require 'autoproj'
+require 'thor'
 
 module Autoproj
     module CLI

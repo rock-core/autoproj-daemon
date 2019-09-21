@@ -1,4 +1,4 @@
-require 'autoproj/cli/main_ci'
+require 'autoproj/daemon'
 
 class Autoproj::CLI::Main
     desc 'daemon', 'subcommands to control a daemon-like behavior'
