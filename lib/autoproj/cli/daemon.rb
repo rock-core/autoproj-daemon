@@ -1,4 +1,5 @@
 require 'autoproj/cli/inspection_tool'
+require 'autoproj/github_watcher'
 require 'tmpdir'
 
 module Autoproj
@@ -12,21 +13,41 @@ module Autoproj
         class Daemon < InspectionTool
             def initialize(*args)
                 super
+                initialize_and_load
                 ws.config.load
             end
 
             def resolve_packages
-                initialize_and_load
                 source_packages, * = finalize_setup(
-                    [], non_imported_packages: :ignore)
+                    [], non_imported_packages: :return)
                 source_packages.map do |pkg_name|
-                    ws.manifest.find_autobuild_package(pkg_name)
+                    ws.manifest.find_package_definition(pkg_name)
                 end
             end
 
             def start
                 raise Autoproj::ConfigError, "you must configure the daemon "\
                     "before starting" unless ws.config.daemon_api_key
+
+                packages = resolve_packages
+                watcher = GithubWatcher.new(ws)
+
+                packages.each do |pkg|
+                    vcs = ws.manifest.importer_definition_for(pkg)
+
+                    next unless vcs.type == 'git'
+                    next unless vcs.url =~
+                        /(?:(?:https?:\/\/|git@).*)github\.com/i
+                    next unless vcs.url =~
+                        /(?:[:\/]([A-Za-z\d\-_]+))\/(.+?)(?:\.git$|$)+$/m
+
+                    owner = $1
+                    name = $2
+                    branch = pkg.autobuild.importer.remote_branch
+
+                    watcher.add_repository(owner, name, branch)
+                end
+                watcher.watch
             end
 
             def configure

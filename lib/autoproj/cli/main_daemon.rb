@@ -6,11 +6,10 @@ module Autoproj
     module CLI
         # CLI interface for autoproj-daemon
         class MainDaemon < Thor
-            desc 'start [ARGS]', 'Starts autoproj daemon plugin'
+            desc 'start [OPTIONS]', 'Starts autoproj daemon plugin'
             option :update, type: 'boolean',
                 desc: 'do an update operation before starting'
             def start(*args)
-                require 'autoproj/cli/daemon'
                 daemon = Daemon.new
 
                 daemon.start
