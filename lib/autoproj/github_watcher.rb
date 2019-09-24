@@ -13,7 +13,9 @@ module Autoproj
             @api_key = ws.config.daemon_api_key
             @polling_period = ws.config.daemon_polling_period
             @client = Octokit::Client.new(access_token: @api_key)
+            @client.auto_paginate = true
             @pullrequest_hooks = Array.new
+            @push_hooks = Array.new
         end
 
         def login
@@ -34,29 +36,50 @@ module Autoproj
             nil
         end
 
+        def add_push_hook(&hook)
+            @push_hooks << hook
+            nil
+        end
+
+        def has_pullrequest_open?(repo)
+            @client.pull_requests("#{repo.owner}/#{repo.name}",
+                base: repo.branch).size > 0
+        end
+
         def handle_events(repo, events)
             events = filter_events(repo, events)
             events.each do |event|
-                @pullrequest_hooks.each do |hook|
-                    hook.call("#{repo.owner}/#{repo.name}",
-                        branch: repo.branch,
-                        number: event['payload']['number'])
+                if event['type'] == 'PullRequestEvent'
+                    @pullrequest_hooks.each do |hook|
+                        hook.call("#{repo.owner}/#{repo.name}",
+                            branch: repo.branch,
+                            number: event['payload']['number'])
+                    end
+                end
+                if event['type'] == 'PushEvent'
+                    @push_hooks.each do |hook|
+                        refs_heads = "refs/heads/"
+                        hook.call("#{repo.owner}/#{repo.name}",
+                            branch: event['payload']['ref'][refs_heads.length..-1])
+                    end
                 end
             end
         end
 
         def filter_events(repo, events)
+            event_types = %w[PullRequestEvent PushEvent]
             events = events.select do |event|
-                next false if event['type'] != 'PullRequestEvent'
+                next false unless event_types.any? event['type']
                 next false if Time.parse(event['created_at']) < repo.timestamp
                 if (event['type'] == 'PullRequestEvent')
                     next false if event['payload']['action'] != 'opened'
                     next false if event['payload']['pull_request']['base']['ref'] != repo.branch
                 end
+                if (event['type'] == 'PushEvent')
+                    next has_pullrequest_open?(repo) ||
+                        "refs/heads/#{repo.branch}" == event['payload']['ref']
+                end
                 true
-
-                # TODO: we should also handle PushEvents if it is a push to our branch
-                # or if it is a push to a branch that has a PR open to our branch
             end
         end
 

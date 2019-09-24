@@ -39,6 +39,9 @@ module Autoproj
             end
 
             it 'handles latest pull requests' do
+                flexmock(watcher).should_receive(:has_pullrequest_open?)
+                    .with(any).and_return(false)
+
                 handler = flexmock(interactive?: false)
                 handler.should_receive(:handle).with("g-arjones/demo_pkg",
                     branch: 'master',
@@ -57,6 +60,55 @@ module Autoproj
                 watcher.watched_repositories.each do |repo|
                     watcher.handle_events(repo, @events)
                 end
+            end
+
+            def push_event_test(owner, name, branch,
+                                push_branch, has_pr, should_call = true)
+                handler = flexmock(interactive?: false)
+                if should_call
+                    handler.should_receive(:handle).with("#{owner}/#{name}",
+                        branch: push_branch).once
+                else
+                    handler.should_receive(:handle).with("#{owner}/#{name}",
+                        branch: push_branch).never
+                end
+
+                watcher.add_repository(owner, name, branch)
+                flexmock(watcher).should_receive(:has_pullrequest_open?)
+                    .with(watcher.watched_repositories[0]).and_return(has_pr)
+
+                watcher.add_push_hook do |_repo, options|
+                    handler.handle(_repo, options)
+                end
+                watcher.handle_events(watcher.watched_repositories[0], @events)
+            end
+
+            it 'handles push events to our branch' do
+                push_event_test(
+                    'g-arjones',
+                    'demo_pkg',
+                    'test_daemon',
+                    'test_daemon',
+                    false)
+            end
+
+            it 'handles push events that have a pr open to our branch' do
+                push_event_test(
+                    'g-arjones',
+                    'demo_pkg',
+                    'master',
+                    'test_daemon',
+                    true)
+            end
+
+            it 'ignores uninteresting push events' do
+                push_event_test(
+                    'g-arjones',
+                    'demo_pkg',
+                    'master',
+                    'test_daemon',
+                    false,
+                    false)
             end
         end
     end
