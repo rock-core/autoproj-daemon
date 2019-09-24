@@ -13,18 +13,20 @@ module Autoproj
             @api_key = ws.config.daemon_api_key
             @polling_period = ws.config.daemon_polling_period
             @client = Octokit::Client.new(access_token: @api_key)
-            @client.user.login
-            @start_time = Time.parse(@client.last_response.headers[:date])
             @pullrequest_hooks = Array.new
         end
 
+        def login
+            @client.user.login
+            Time.parse(@client.last_response.headers[:date])
+        end
+
+        Repository = Struct.new :owner, :name, :branch, :timestamp
+
         def add_repository(owner, name, branch = 'master')
-            watched_repositories << {
-                owner: owner,
-                name: name,
-                branch: branch,
-                timestamp: @start_time
-            }
+            @start_time ||= login
+            watched_repositories <<
+                Repository.new(owner, name, branch, @start_time)
         end
 
         def add_pullrequest_hook(&hook)
@@ -36,8 +38,8 @@ module Autoproj
             events = filter_events(repo, events)
             events.each do |event|
                 @pullrequest_hooks.each do |hook|
-                    hook.call("#{repo[:owner]}/#{repo[:name]}",
-                        branch: repo[:branch],
+                    hook.call("#{repo.owner}/#{repo.name}",
+                        branch: repo.branch,
                         number: event['payload']['number'])
                 end
             end
@@ -46,11 +48,10 @@ module Autoproj
         def filter_events(repo, events)
             events = events.select do |event|
                 next false if event['type'] != 'PullRequestEvent'
-                next false if Time.parse(event['created_at']) < repo[:timestamp]
-                if ((event['type'] == 'PullRequestEvent') &&
-                    ((event['payload']['action'] != 'opened') ||
-                     (event['payload']['pull_request']['base']['ref'] != repo[:branch])))
-                    next false
+                next false if Time.parse(event['created_at']) < repo.timestamp
+                if (event['type'] == 'PullRequestEvent')
+                    next false if event['payload']['action'] != 'opened'
+                    next false if event['payload']['pull_request']['base']['ref'] != repo.branch
                 end
                 true
 
@@ -63,8 +64,8 @@ module Autoproj
             loop do
                 watched_repositories.each do |repo|
                     events = @client.repository_events(
-                        "#{repo[:owner]}/#{repo[:name]}")
-                    repo[:timestamp] = Time.parse(
+                        "#{repo.owner}/#{repo.name}")
+                    repo.timestamp = Time.parse(
                         @client.last_response.headers[:date])
 
                     handle_events(repo, events)

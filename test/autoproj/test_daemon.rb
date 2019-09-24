@@ -9,8 +9,6 @@ module Autoproj::CLI
         attr_reader :ws
         before do
             @ws = ws_create
-            Timecop.freeze(Time.parse("2019-09-22 23:48:00 UTC"))
-            mock_github_client
             @cli = Daemon.new(@ws)
             flexmock(Autoproj::GithubWatcher).new_instances
                 .should_receive(:watch)
