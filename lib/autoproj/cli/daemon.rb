@@ -18,6 +18,10 @@ module Autoproj
                 @update_failed = false
             end
 
+            # Loads all package definitions from the installation manifest
+            #
+            # @return [Array<Autoproj::InstallationManifest::Package,
+            #     Autoproj::InstallationManifest::PackageSet>] package array
             def resolve_packages
                 installation_manifest = Autoproj::InstallationManifest
                     .from_workspace_root(ws.root_dir)
@@ -25,6 +29,11 @@ module Autoproj
                     installation_manifest.each_package_set.to_a
             end
 
+            # Adds a VCS definition to the watch list of the internal
+            # GithubWatcher instance
+            #
+            # @param [Hash] vcs Hash representation of an Autoproj::VCSDefinition
+            # @return [Boolean] whether the given hash was valid or not
             def watch_vcs_definition(vcs)
                 return false unless vcs[:type] == 'git'
                 return false unless vcs[:url] =~
@@ -41,6 +50,9 @@ module Autoproj
                 true
             end
 
+            # Starts watching the whole workspace
+            #
+            # @return [nil]
             def start
                 raise Autoproj::ConfigError, "you must configure the daemon "\
                     "before starting" unless ws.config.daemon_api_key
@@ -57,15 +69,28 @@ module Autoproj
                     exec($PROGRAM_NAME, 'daemon', 'start', '--update')
                 end
                 watcher.watch
+                nil
             end
 
+            # Updates the current workspace. This method will invoke the CLI
+            # (same as doing an 'autoproj update --no-interactive --no-osdeps').
+            # The member variable @update_failed will store the result of the
+            # update attempt.
+            #
+            # @return [Boolean] whether the update failed or not
             def update
                 Main.start(
                     ['update', '--no-osdeps', '--no-interactive', ws.root_dir])
+                @update_failed = false
+                true
             rescue StandardError
                 @update_failed = true
+                false
             end
 
+            # (Re)configures the daemon
+            #
+            # @return [nil]
             def configure
                 ws.config.declare 'daemon_api_key', 'string',
                     doc: 'Enter a github API key for authentication'
@@ -79,6 +104,7 @@ module Autoproj
 
                 ws.config.daemon_polling_period = ws.config.daemon_polling_period.to_i
                 ws.config.save
+                nil
             end
         end
     end
