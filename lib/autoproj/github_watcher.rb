@@ -63,16 +63,16 @@ module Autoproj
                             branch: event['payload']['ref'][refs_heads.length..-1])
                     end
                 end
-            end
+            end.size
         end
 
         def filter_events(repo, events)
             event_types = %w[PullRequestEvent PushEvent]
             events = events.select do |event|
                 next false unless event_types.any? event['type']
-                next false if Time.parse(event['created_at']) < repo.timestamp
+                next false if Time.parse(event['created_at'].to_s) < repo.timestamp
                 if (event['type'] == 'PullRequestEvent')
-                    next false if event['payload']['action'] != 'opened'
+                    next false unless event['payload']['action'] =~ /opened/
                     next false if event['payload']['pull_request']['base']['ref'] != repo.branch
                 end
                 if (event['type'] == 'PushEvent')
@@ -88,10 +88,11 @@ module Autoproj
                 watched_repositories.each do |repo|
                     events = @client.repository_events(
                         "#{repo.owner}/#{repo.name}")
-                    repo.timestamp = Time.parse(
-                        @client.last_response.headers[:date])
 
-                    handle_events(repo, events)
+                    if handle_events(repo, events) > 0
+                        repo.timestamp = Time.parse(
+                            @client.last_response.headers[:date])
+                    end
                 end
                 sleep @polling_period
             end
