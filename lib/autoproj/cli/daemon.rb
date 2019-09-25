@@ -13,16 +13,14 @@ module Autoproj
         class Daemon < InspectionTool
             def initialize(*args)
                 super
-                initialize_and_load
                 ws.config.load
             end
 
             def resolve_packages
-                source_packages, * = finalize_setup(
-                    [], non_imported_packages: :return)
-                source_packages.map do |pkg_name|
-                    ws.manifest.find_package_definition(pkg_name)
-                end
+                installation_manifest = Autoproj::InstallationManifest
+                    .from_workspace_root(ws.root_dir)
+                installation_manifest.each_package.to_a +
+                    installation_manifest.each_package_set.to_a
             end
 
             def start
@@ -33,17 +31,16 @@ module Autoproj
                 watcher = GithubWatcher.new(ws)
 
                 packages.each do |pkg|
-                    vcs = ws.manifest.importer_definition_for(pkg)
-
-                    next unless vcs.type == 'git'
-                    next unless vcs.url =~
+                    next unless pkg.vcs[:type] == 'git'
+                    next unless pkg.vcs[:url] =~
                         /(?:(?:https?:\/\/|git@).*)github\.com/i
-                    next unless vcs.url =~
+                    next unless pkg.vcs[:url] =~
                         /(?:[:\/]([A-Za-z\d\-_]+))\/(.+?)(?:\.git$|$)+$/m
 
                     owner = $1
                     name = $2
-                    branch = pkg.autobuild.importer.remote_branch
+                    branch = pkg.vcs[:remote_branch] ||
+                        pkg.vcs[:branch] || 'master'
 
                     watcher.add_repository(owner, name, branch)
                 end

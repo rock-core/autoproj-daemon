@@ -9,18 +9,21 @@ module Autoproj::CLI
         attr_reader :ws
         before do
             @ws = ws_create
+            @manifest = Autoproj::InstallationManifest.new(
+                ws.installation_manifest_path)
             @cli = Daemon.new(@ws)
+
+            flexmock(Autoproj::InstallationManifest)
+                .should_receive(:from_workspace_root).and_return(@manifest)
             flexmock(Autoproj::GithubWatcher).new_instances
                 .should_receive(:watch)
         end
 
         def define_package(name, vcs)
-            pkg = ws_define_package :cmake, name
-            pkg.autobuild.importer = flexmock(interactive?: false)
-            flexmock(pkg.autobuild.importer).should_receive(:import)
-            flexmock(pkg.autobuild.importer).should_receive(:remote_branch)
-                .and_return(vcs[:remote_branch])
-            ws_define_package_vcs(pkg, vcs)
+            pkg = Autoproj::InstallationManifest::Package.new(
+                name, 'Autobuild::CMake', vcs, '/src', '/prefix', '/build', [])
+
+            @manifest.add_package(pkg)
         end
 
         describe '#start' do
