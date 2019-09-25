@@ -70,6 +70,18 @@ module Autoproj::CLI
                 cli.ws.config.daemon_api_key = 'abcdefg'
                 cli.start
             end
+
+            it 'watches main package set if it has a valid vcs definition' do
+                vcs = Autoproj::VCSDefinition.new('git',
+                    'git@github.com:foo/buildconf.git', {})
+                flexmock(ws.manifest.main_package_set).should_receive(:vcs)
+                    .and_return(vcs)
+                flexmock(Autoproj::GithubWatcher).new_instances
+                    .should_receive(:add_repository).with(
+                        "foo", "buildconf", "master").once
+                cli.ws.config.daemon_api_key = 'abcdefg'
+                cli.start
+            end
         end
 
         describe '#configure' do

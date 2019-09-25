@@ -11,6 +11,7 @@ module Autoproj
         # same pattern, and registers its subcommand in {MainDaemon} while implementing
         # the functionality in this class
         class Daemon < InspectionTool
+            attr_reader :watcher
             def initialize(*args)
                 super
                 ws.config.load
@@ -24,27 +25,34 @@ module Autoproj
                     installation_manifest.each_package_set.to_a
             end
 
+            def watch_vcs_definition(vcs)
+                return false unless vcs[:type] == 'git'
+                return false unless vcs[:url] =~
+                    /(?:(?:https?:\/\/|git@).*)github\.com/i
+                return false unless vcs[:url] =~
+                    /(?:[:\/]([A-Za-z\d\-_]+))\/(.+?)(?:\.git$|$)+$/m
+
+                owner = $1
+                name = $2
+                branch = vcs[:remote_branch] ||
+                    vcs[:branch] || 'master'
+
+                watcher.add_repository(owner, name, branch)
+                true
+            end
+
             def start
                 raise Autoproj::ConfigError, "you must configure the daemon "\
                     "before starting" unless ws.config.daemon_api_key
 
                 packages = resolve_packages
-                watcher = GithubWatcher.new(ws)
+                @watcher = GithubWatcher.new(ws)
 
                 packages.each do |pkg|
-                    next unless pkg.vcs[:type] == 'git'
-                    next unless pkg.vcs[:url] =~
-                        /(?:(?:https?:\/\/|git@).*)github\.com/i
-                    next unless pkg.vcs[:url] =~
-                        /(?:[:\/]([A-Za-z\d\-_]+))\/(.+?)(?:\.git$|$)+$/m
-
-                    owner = $1
-                    name = $2
-                    branch = pkg.vcs[:remote_branch] ||
-                        pkg.vcs[:branch] || 'master'
-
-                    watcher.add_repository(owner, name, branch)
+                    watch_vcs_definition(pkg.vcs)
                 end
+                watch_vcs_definition(ws.manifest.main_package_set.vcs.to_hash)
+
                 watcher.add_push_hook do |repo, options|
                     exec($PROGRAM_NAME, 'daemon', 'start', '--update')
                 end
