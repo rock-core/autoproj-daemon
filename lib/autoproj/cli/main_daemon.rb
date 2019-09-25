@@ -11,7 +11,7 @@ module Autoproj
                 desc: 'do an update operation before starting'
             def start(*args)
                 daemon = Daemon.new
-
+                daemon.update if options[:update]
                 daemon.start
             rescue StandardError => e
                 Autoproj.error e.message

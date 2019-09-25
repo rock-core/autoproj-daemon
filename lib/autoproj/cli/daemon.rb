@@ -14,6 +14,7 @@ module Autoproj
             def initialize(*args)
                 super
                 ws.config.load
+                @update_failed = false
             end
 
             def resolve_packages
@@ -44,7 +45,17 @@ module Autoproj
 
                     watcher.add_repository(owner, name, branch)
                 end
+                watcher.add_push_hook do |repo, options|
+                    exec($PROGRAM_NAME, 'daemon', 'start', '--update')
+                end
                 watcher.watch
+            end
+
+            def update
+                Main.start(
+                    ['update', '--no-osdeps', '--no-interactive', ws.root_dir])
+            rescue StandardError
+                @update_failed = true
             end
 
             def configure
