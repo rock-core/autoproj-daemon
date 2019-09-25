@@ -40,7 +40,7 @@ module Autoproj
 
             it 'handles latest pull requests' do
                 flexmock(watcher).should_receive(:has_pullrequest_open?)
-                    .with(any).and_return(false)
+                    .with(any, any).and_return(false)
 
                 handler = flexmock(interactive?: false)
                 handler.should_receive(:handle).with("g-arjones/demo_pkg",
@@ -75,7 +75,8 @@ module Autoproj
 
                 watcher.add_repository(owner, name, branch)
                 flexmock(watcher).should_receive(:has_pullrequest_open?)
-                    .with(watcher.watched_repositories[0]).and_return(has_pr)
+                    .with(watcher.watched_repositories[0], "#{owner}:#{push_branch}")
+                    .and_return(has_pr)
 
                 watcher.add_push_hook do |_repo, options|
                     handler.handle(_repo, options)

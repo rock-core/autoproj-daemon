@@ -41,9 +41,11 @@ module Autoproj
             nil
         end
 
-        def has_pullrequest_open?(repo)
+        def has_pullrequest_open?(repo, head)
             @client.pull_requests("#{repo.owner}/#{repo.name}",
-                base: repo.branch).size > 0
+                base: repo.branch).any? do |pr|
+                    pr['head']['label'] == head
+                end
         end
 
         def handle_events(repo, events)
@@ -76,8 +78,11 @@ module Autoproj
                     next false if event['payload']['pull_request']['base']['ref'] != repo.branch
                 end
                 if (event['type'] == 'PushEvent')
-                    next has_pullrequest_open?(repo) ||
-                        "refs/heads/#{repo.branch}" == event['payload']['ref']
+                    refs_heads = "refs/heads/"
+                    user = event['actor']['login']
+                    branch =  event['payload']['ref'][refs_heads.length..-1]
+                    next "refs/heads/#{repo.branch}" == event['payload']['ref'] ||
+                        has_pullrequest_open?(repo, "#{user}:#{branch}")
                 end
                 true
             end
