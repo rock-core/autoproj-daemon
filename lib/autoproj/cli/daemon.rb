@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 require 'autoproj/cli/inspection_tool'
-require 'autoproj/github_watcher'
+require 'autoproj/daemon/github_watcher'
 require 'tmpdir'
 
 module Autoproj
@@ -91,7 +91,7 @@ module Autoproj
                     raise Autoproj::ConfigError, 'you must configure the '\
                         'daemon before starting'
                 end
-                @watcher = GithubWatcher.new(ws)
+                @watcher = Autoproj::Daemon::GithubWatcher.new(ws)
 
                 load_packages
                 setup_hooks

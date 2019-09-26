@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 require 'test_helper'
-require 'autoproj/github_watcher'
+require 'autoproj/daemon/github_watcher'
 require 'rubygems/package'
 require 'time'
 
@@ -20,7 +20,7 @@ module Autoproj
 
                 flexmock(Autoproj::InstallationManifest)
                     .should_receive(:from_workspace_root).and_return(@manifest)
-                flexmock(Autoproj::GithubWatcher)
+                flexmock(Autoproj::Daemon::GithubWatcher)
                     .new_instances.should_receive(:watch)
             end
 
@@ -44,7 +44,7 @@ module Autoproj
                                           url: 'https://github.com/owner/foo',
                                           remote_branch: 'develop')
 
-                    flexmock(Autoproj::GithubWatcher)
+                    flexmock(Autoproj::Daemon::GithubWatcher)
                         .new_instances.should_receive(:add_repository)
                         .with('owner', 'foo', 'develop').once
                     cli.ws.config.daemon_api_key = 'abcdefg'
@@ -56,7 +56,7 @@ module Autoproj
                                           url: 'git@github.com:owner/bar',
                                           remote_branch: 'master')
 
-                    flexmock(Autoproj::GithubWatcher)
+                    flexmock(Autoproj::Daemon::GithubWatcher)
                         .new_instances.should_receive(:add_repository)
                         .with('owner', 'bar', 'master').once
                     cli.ws.config.daemon_api_key = 'abcdefg'
@@ -68,7 +68,7 @@ module Autoproj
                                           url: 'git@bitbucket.org.com:owner/bar',
                                           remote_branch: 'develop')
 
-                    flexmock(Autoproj::GithubWatcher)
+                    flexmock(Autoproj::Daemon::GithubWatcher)
                         .new_instances.should_receive(:add_repository).with(any).never
                     cli.ws.config.daemon_api_key = 'abcdefg'
                     cli.start
@@ -82,7 +82,7 @@ module Autoproj
                     )
                     flexmock(ws.manifest.main_package_set)
                         .should_receive(:vcs).and_return(vcs)
-                    flexmock(Autoproj::GithubWatcher)
+                    flexmock(Autoproj::Daemon::GithubWatcher)
                         .new_instances.should_receive(:add_repository)
                         .with('foo', 'buildconf', 'master').once
                     cli.ws.config.daemon_api_key = 'abcdefg'

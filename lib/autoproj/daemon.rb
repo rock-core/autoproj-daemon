@@ -2,6 +2,7 @@
 
 require 'autoproj/cli/daemon'
 require 'autoproj/cli/main_daemon'
+require 'autoproj/daemon/github_watcher'
 require 'autoproj/daemon/version'
 require 'autoproj/extensions/configuration'
 
