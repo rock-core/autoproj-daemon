@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require 'autoproj/cli/daemon'
 require 'autoproj/cli/main_daemon'
 require 'autoproj/daemon/version'

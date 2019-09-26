@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require 'test_helper'
 require 'autoproj/github_watcher'
 require 'timecop'
@@ -5,8 +7,9 @@ require 'rubygems/package'
 require 'time'
 require 'json'
 
+# Autoproj's main module
 module Autoproj
-    describe GithubWatcher do
+    describe GithubWatcher do # rubocop: disable Metrics/BlockLength
         attr_reader :watcher
         attr_reader :ws
         before do
@@ -28,28 +31,30 @@ module Autoproj
                 assert_equal 'rock-core', watcher.watched_repositories.first.owner
                 assert_equal 'autoproj', watcher.watched_repositories.first.name
                 assert_equal 'master', watcher.watched_repositories.first.branch
-                assert_equal Time.now.to_f, watcher.watched_repositories.first.timestamp.to_f
+                assert_equal Time.now.to_f,
+                             watcher.watched_repositories.first.timestamp.to_f
             end
         end
 
-        describe '#handle_events' do
+        describe '#handle_events' do # rubocop: disable Metrics/BlockLength
             before do
-                @events = JSON.load(
-                    File.read(File.expand_path('events.json', __dir__)))
+                @events = JSON.parse(
+                    File.read(File.expand_path('events.json', __dir__))
+                )
             end
 
             it 'handles latest pull requests' do
-                flexmock(watcher).should_receive(:has_pullrequest_open?)
-                    .with(any, any).and_return(false)
+                flexmock(watcher)
+                    .should_receive(:pullrequest_open?).with(any, any).and_return(false)
 
                 handler = flexmock(interactive?: false)
-                handler.should_receive(:handle).with("g-arjones/demo_pkg",
-                    branch: 'master',
-                    number: 1).once
+                handler.should_receive(:handle)
+                       .with('g-arjones/demo_pkg', branch: 'master',
+                                                   number: 1).once
 
-                handler.should_receive(:handle).with("g-arjones/demo_pkg",
-                    branch: 'develop',
-                    number: 2).once
+                handler.should_receive(:handle)
+                       .with('g-arjones/demo_pkg', branch: 'develop',
+                                                   number: 2).once
 
                 watcher.add_repository('g-arjones', 'demo_pkg', 'master')
                 watcher.add_repository('g-arjones', 'demo_pkg', 'develop')
@@ -62,27 +67,30 @@ module Autoproj
                 end
             end
 
+            # rubocop: disable Metrics/AbcSize
             def push_event_test(owner, name, branch,
-                                push_branch, has_pr, should_call = true)
+                push_branch, options = {})
                 handler = flexmock(interactive?: false)
-                if should_call
-                    handler.should_receive(:handle).with("#{owner}/#{name}",
-                        branch: push_branch).once
+                if options[:never]
+                    handler.should_receive(:handle)
+                           .with("#{owner}/#{name}", branch: push_branch).never
                 else
-                    handler.should_receive(:handle).with("#{owner}/#{name}",
-                        branch: push_branch).never
+                    handler.should_receive(:handle)
+                           .with("#{owner}/#{name}", branch: push_branch).once
                 end
 
                 watcher.add_repository(owner, name, branch)
-                flexmock(watcher).should_receive(:has_pullrequest_open?)
+                flexmock(watcher)
+                    .should_receive(:pullrequest_open?)
                     .with(watcher.watched_repositories[0], "#{owner}:#{push_branch}")
-                    .and_return(has_pr)
+                    .and_return(options[:has_pr])
 
-                watcher.add_push_hook do |_repo, options|
-                    handler.handle(_repo, options)
+                watcher.add_push_hook do |repo_, options_|
+                    handler.handle(repo_, options_)
                 end
                 watcher.handle_events(watcher.watched_repositories[0], @events)
             end
+            # rubocop: enable Metrics/AbcSize
 
             it 'handles push events to our branch' do
                 push_event_test(
@@ -90,7 +98,8 @@ module Autoproj
                     'demo_pkg',
                     'test_daemon',
                     'test_daemon',
-                    false)
+                    has_pr: false
+                )
             end
 
             it 'handles push events that have a pr open to our branch' do
@@ -99,7 +108,8 @@ module Autoproj
                     'demo_pkg',
                     'master',
                     'test_daemon',
-                    true)
+                    has_pr: true
+                )
             end
 
             it 'ignores uninteresting push events' do
@@ -108,8 +118,9 @@ module Autoproj
                     'demo_pkg',
                     'master',
                     'test_daemon',
-                    false,
-                    false)
+                    has_pr: false,
+                    never: true
+                )
             end
         end
     end

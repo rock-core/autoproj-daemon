@@ -1,5 +1,8 @@
+# frozen_string_literal: true
+
 module Autoproj
     module Extensions
+        # Autoproj's main configuration scope
         module Configuration
             # Sets the github api key to be used for authentication.
             # @param [String] api_key the github api key

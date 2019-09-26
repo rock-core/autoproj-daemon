@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require 'autoproj'
 require 'octokit'
 require 'time'
@@ -11,7 +13,7 @@ module Autoproj
         attr_reader :ws
 
         # @param [Autoproj::Workspace] ws The loaded workspace
-        def initialize(ws)
+        def initialize(ws) # rubocop:disable Naming/UncommunicativeMethodParamName
             @watched_repositories = []
             @ws = ws
             @api_key = ws.config.daemon_api_key
@@ -76,12 +78,14 @@ module Autoproj
         # @param [Repository] repo A wacthed repository definition
         # @param [String] head The head definition in the format user:branch
         # @return [Boolean] Whether there's a PR open or not
-        def has_pullrequest_open?(repo, head)
+        def pullrequest_open?(repo, head)
             @client.pull_requests("#{repo.owner}/#{repo.name}",
-                base: repo.branch).any? do |pr|
-                    pr['head']['label'] == head
-                end
+                                  base: repo.branch).any? do |pr|
+                pr['head']['label'] == head
+            end
         end
+
+        REFS_HEADS_RANGE = ('refs/heads/'.length..-1).freeze
 
         # Handles (by calling all corresponding hooks) a given set
         # of events.
@@ -89,24 +93,37 @@ module Autoproj
         # @param [Repository] repo A wacthed repository definition
         # @param [Array<Hash>] events Hash with the events returned by the API
         # @return [Integer] The number of handled events
+        #
+        # rubocop: disable Metrics/AbcSize
         def handle_events(repo, events)
-            events = filter_events(repo, events)
-            events.each do |event|
+            filter_events(repo, events).each do |event|
                 if event['type'] == 'PullRequestEvent'
                     @pullrequest_hooks.each do |hook|
                         hook.call("#{repo.owner}/#{repo.name}",
-                            branch: repo.branch,
-                            number: event['payload']['number'])
+                                  branch: repo.branch,
+                                  number: event['payload']['number'])
                     end
-                end
-                if event['type'] == 'PushEvent'
+                else
                     @push_hooks.each do |hook|
-                        refs_heads = "refs/heads/"
                         hook.call("#{repo.owner}/#{repo.name}",
-                            branch: event['payload']['ref'][refs_heads.length..-1])
+                                  branch: event['payload']['ref'][REFS_HEADS_RANGE])
                     end
                 end
             end.size
+        end
+        # rubocop: enable Metrics/AbcSize
+
+        # Whether an event is valid for a given repository
+        # A valid event is either a Pull Request or Push that
+        # are newer than the last handled event
+        #
+        # @return [Boolean]
+        def valid_event?(repo, event)
+            event_types = %w[PullRequestEvent PushEvent]
+            return false unless event_types.any? event['type']
+            return false if Time.parse(event['created_at'].to_s) < repo.timestamp
+
+            true
         end
 
         # Filters out uninteresting events for a given repository.
@@ -122,25 +139,26 @@ module Autoproj
         # @param [Repository] repo A watched repository
         # @param [Array<Hash>] events The array of events as returned by the API
         # @return [Array<Hash>] A filtered array of events
+        #
+        # rubocop: disable Metrics/AbcSize
         def filter_events(repo, events)
-            event_types = %w[PullRequestEvent PushEvent]
-            events = events.select do |event|
-                next false unless event_types.any? event['type']
-                next false if Time.parse(event['created_at'].to_s) < repo.timestamp
-                if (event['type'] == 'PullRequestEvent')
+            events.select do |event|
+                next false unless valid_event?(repo, event)
+
+                if event['type'] == 'PullRequestEvent'
                     next false unless event['payload']['action'] =~ /opened/
-                    next false if event['payload']['pull_request']['base']['ref'] != repo.branch
-                end
-                if (event['type'] == 'PushEvent')
-                    refs_heads = "refs/heads/"
+                    next false if event['payload']['pull_request']['base']['ref'] !=
+                                  repo.branch
+                else
                     user = event['actor']['login']
-                    branch =  event['payload']['ref'][refs_heads.length..-1]
-                    next "refs/heads/#{repo.branch}" == event['payload']['ref'] ||
-                        has_pullrequest_open?(repo, "#{user}:#{branch}")
+                    branch = event['payload']['ref'][REFS_HEADS_RANGE]
+                    next event['payload']['ref'] == "refs/heads/#{repo.branch}" ||
+                        pullrequest_open?(repo, "#{user}:#{branch}")
                 end
                 true
             end
         end
+        # rubocop: enable Metrics/AbcSize
 
         # Starts watching all repositories
         # This method will loop indefinitely, polling GitHub with the period
@@ -153,11 +171,13 @@ module Autoproj
             loop do
                 watched_repositories.each do |repo|
                     events = @client.repository_events(
-                        "#{repo.owner}/#{repo.name}")
+                        "#{repo.owner}/#{repo.name}"
+                    )
 
                     if handle_events(repo, events) > 0
                         repo.timestamp = Time.parse(
-                            @client.last_response.headers[:date])
+                            @client.last_response.headers[:date]
+                        )
                     end
                 end
                 sleep @polling_period
