@@ -61,20 +61,29 @@ module Autoproj
                 true
             end
 
+            # Whether an attempt to update the workspace has failed
+            #
+            # @return [Boolean]
+            def update_failed?
+                @update_failed
+            end
+
             # Adds hooks for Github events
             #
             # @return [nil]
             def setup_hooks
                 watcher.add_push_hook do
-                    Process.exec($PROGRAM_NAME, 'daemon', 'start', '--update')
+                    Process.exec(
+                        Gem.ruby, $PROGRAM_NAME, 'daemon', 'start', '--update'
+                    )
                 end
                 nil
             end
 
-            # Loads package definitions
+            # Watch all package definitions
             #
             # @return [nil]
-            def load_packages
+            def watch_packages
                 packages = resolve_packages
                 packages.each do |pkg|
                     watch_vcs_definition(pkg.vcs)
@@ -93,7 +102,7 @@ module Autoproj
                 end
                 @watcher = Autoproj::Daemon::GithubWatcher.new(ws)
 
-                load_packages
+                watch_packages
                 setup_hooks
                 watcher.watch
                 nil

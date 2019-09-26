@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'test_helper'
+require 'autoproj/cli/main'
 require 'autoproj/daemon/github_watcher'
 require 'rubygems/package'
 require 'time'
@@ -30,6 +31,95 @@ module Autoproj
                 )
 
                 @manifest.add_package(pkg)
+            end
+
+            describe '#parse_repo_url' do # rubocop: disable Metrics/BlockLength
+                it 'parses an http url' do
+                    owner, name = cli.parse_repo_url(
+                        'http://github.com/rock-core/autoproj'
+                    )
+                    assert_equal 'rock-core', owner
+                    assert_equal 'autoproj', name
+                end
+
+                it 'parses a ssh url' do
+                    owner, name = cli.parse_repo_url(
+                        'git@github.com:rock-core/autoproj'
+                    )
+                    assert_equal 'rock-core', owner
+                    assert_equal 'autoproj', name
+                end
+
+                it 'removes git extension from repo name' do
+                    owner, name = cli.parse_repo_url(
+                        'git@github.com:rock-core/autoproj.git'
+                    )
+                    assert_equal 'rock-core', owner
+                    assert_equal 'autoproj', name
+                end
+
+                it 'returns nil for incomplete urls' do
+                    assert_nil cli.parse_repo_url(
+                        'git@github.com:rock-core/'
+                    )
+                end
+            end
+
+            describe 'VALID_URL_RX' do
+                it 'allows only github urls' do
+                    assert_nil Daemon::VALID_URL_RX.match(
+                        'git@bitbucket.org:rock-core/autoproj'
+                    )
+                    assert_nil Daemon::VALID_URL_RX.match(
+                        'http://bitbucket.org:rock-core/autoproj'
+                    )
+                    assert Daemon::VALID_URL_RX.match(
+                        'git@github.com:rock-core/autoproj'
+                    )
+                    assert Daemon::VALID_URL_RX.match(
+                        'ssh://github.com:rock-core/autoproj'
+                    )
+                    assert Daemon::VALID_URL_RX.match(
+                        'http://github.com:rock-core/autoproj'
+                    )
+                end
+            end
+
+            describe '#setup_hooks' do
+                it 'updates the workspace on push event' do
+                    watcher = flexmock
+                    flexmock(cli).should_receive(:watcher).and_return(watcher)
+                    flexmock(Process)
+                        .should_receive(:exec)
+                        .with(Gem.ruby, $PROGRAM_NAME, 'daemon',
+                              'start', '--update').once
+
+                    watcher.should_receive(:add_push_hook)
+                           .and_yield('rock-core', 'autoproj')
+                    cli.setup_hooks
+                end
+            end
+
+            describe '#update' do
+                it 'triggers an autoproj update' do
+                    flexmock(Main).should_receive(:start)
+                                  .with(['update',
+                                         '--no-osdeps',
+                                         '--no-interactive',
+                                         ws.root_dir]).and_return(true)
+                    assert cli.update
+                    refute cli.update_failed?
+                end
+
+                it 'handles a failed update' do
+                    flexmock(Main).should_receive(:start)
+                                  .with(['update',
+                                         '--no-osdeps',
+                                         '--no-interactive',
+                                         ws.root_dir]).and_return { raise }
+                    refute cli.update
+                    assert cli.update_failed?
+                end
             end
 
             describe '#start' do # rubocop: disable Metrics/BlockLength

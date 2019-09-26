@@ -121,7 +121,7 @@ module Autoproj
             # @return [Boolean]
             def valid_event?(repo, event)
                 event_types = %w[PullRequestEvent PushEvent]
-                return false unless event_types.any? event['type']
+                return false unless event_types.any? { |e| e == event['type'] }
                 return false if Time.parse(event['created_at'].to_s) < repo.timestamp
 
                 true
