@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/rock-core/autoproj-daemon.svg?branch=master)](https://travis-ci.org/rock-core/autoproj-daemon)
+
 # Autoproj::Daemon
 
 
