@@ -11,29 +11,39 @@ module Autoproj
             # An abstraction layer for GitHub's REST API
             class Client
                 def initialize(options = {})
-                    @client = Octokit::Client.new(api_key: options[:api_key])
+                    @client = Octokit::Client.new(access_token: options[:access_token])
                     @client.auto_paginate = options[:auto_paginate]
                 end
 
                 # @return [Array<PullRequest>]
                 def pull_requests(owner, name, options = {})
                     @client.pull_requests("#{owner}/#{name}", options).map do |pr|
-                        PullRequest.new(pr.to_hash.to_json)
+                        PullRequest.new(pr.to_hash)
                     end
                 end
 
                 # @return [Array<Branch>]
                 def branches(owner, name, options = {})
                     @client.branches("#{owner}/#{name}", options).map do |branch|
-                        Branch.new(owner, name, branch.to_hash.to_json)
+                        Branch.new(owner, name, branch.to_hash)
                     end
                 end
 
-                # @param [Autoproj::Github::Branch] branch A branch to delete
+                # @param [Branch] branch A branch to delete
                 def delete_branch(branch)
                     @client.delete_branch(
                         "#{branch.owner}/#{branch.name}", branch.branch_name
                     )
+                end
+
+                # @param [String] owner
+                # @param [String] name
+                # @param [String] branch_name
+                def branch(owner, name, branch_name)
+                    model = @client.branch(
+                        "#{owner}/#{name}", branch_name
+                    ).to_hash
+                    Branch.new(owner, name, model)
                 end
 
                 # @return [Integer]

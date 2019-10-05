@@ -1,12 +1,14 @@
 # frozen_string_literal: true
 
+require 'json'
+
 module Autoproj
     module Daemon
         module Github
             # A PullRequest model representation
             class PullRequest
                 def initialize(model)
-                    @model = model
+                    @model = JSON.parse(model.to_json)
                 end
 
                 # @return [Boolean]

@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'json'
+
 module Autoproj
     module Daemon
         module Github
@@ -14,7 +16,7 @@ module Autoproj
                 def initialize(owner, name, model)
                     @owner = owner
                     @name = name
-                    @model = model
+                    @model = JSON.parse(model.to_json)
                 end
 
                 # @return [String]
