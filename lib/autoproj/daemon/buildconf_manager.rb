@@ -54,22 +54,18 @@ module Autoproj
 
             # @return [Array<Github::PullRequest>]
             def update_pull_requests
-                @pull_requests = []
                 filtered_repos = packages.map do |pkg|
                     { owner: pkg.owner, name: pkg.name, branch: pkg.branch }
                 end.uniq
 
-                filtered_repos.each do |repo|
-                    @pull_requests << client.pull_requests(
+                @pull_requests = filtered_repos.flat_map do |repo|
+                    client.pull_requests(
                         repo[:owner],
                         repo[:name],
                         base: repo[:branch],
                         state: 'open'
                     )
                 end
-                @pull_requests.flatten!
-                @pull_requests.compact!
-                @pull_requests
             end
 
             BRANCH_TO_PR_RX =
