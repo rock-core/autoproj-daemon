@@ -79,7 +79,7 @@ module Autoproj
                 )
             end
 
-            # @return [nil]
+            # @return [void]
             def delete_stale_branches
                 stale_branches = branches.select do |branch|
                     next false unless (m = branch.branch_name.match(BRANCH_TO_PR_RX))
@@ -92,14 +92,13 @@ module Autoproj
                 delete_branches(stale_branches)
             end
 
-            # @return [nil]
+            # @return [void]
             def delete_branches(branches)
                 branches.each do |branch|
                     Autoproj.message "Deleting stale branch #{branch.branch_name} "\
                         "from #{branch.owner}/#{branch.name}"
                     client.delete_branch(branch)
                 end
-                nil
             end
 
             # @return [String]
@@ -209,14 +208,13 @@ module Autoproj
             end
 
             # @param [Github::Branch] branch
-            # @return [nil]
+            # @return [void]
             def trigger_build(branch)
                 Autoproj.message "Triggering build for #{branch.branch_name} (new)"
-                nil
             end
 
             # @param [Array<Github::Branch>] branches
-            # @return [nil]
+            # @return [void]
             def trigger_build_if_branch_changed(branches)
                 branches.each do |branch|
                     pr = pull_request_by_branch(branch)
@@ -226,10 +224,9 @@ module Autoproj
                     cache.add(pr, overrides)
                     Autoproj.message "Triggering build for #{branch.branch_name} (update)"
                 end
-                nil
             end
 
-            # @return [nil]
+            # @return [void]
             def synchronize_branches
                 cache.clear
                 update_pull_requests

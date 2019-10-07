@@ -33,7 +33,7 @@ module Autoproj
             end
 
             # @param [Github::PullRequest] pull_request
-            # @return [nil]
+            # @return [void]
             def add(pull_request, overrides)
                 pull_requests.delete_if { |pr| same?(pr, pull_request) }
                 pull_requests << CachedPullRequest.new(
@@ -46,7 +46,7 @@ module Autoproj
                 )
             end
 
-            # @return [Array<CachedPullRequest>]
+            # @return [void]
             def clear
                 @pull_requests = []
             end
@@ -64,12 +64,11 @@ module Autoproj
 
             CACHE_FILE = 'pull_request_cache.yml'
 
-            # @return [nil]
+            # @return [void]
             def dump
                 File.open(cache_file, 'w') do |file|
                     file.write(pull_requests.to_yaml)
                 end
-                nil
             end
 
             # @return [String]
