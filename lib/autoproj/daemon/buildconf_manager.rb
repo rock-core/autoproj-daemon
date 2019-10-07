@@ -54,15 +54,15 @@ module Autoproj
 
             # @return [Array<Github::PullRequest>]
             def update_pull_requests
-                filtered_repos = packages.map do |pkg|
-                    { owner: pkg.owner, name: pkg.name, branch: pkg.branch }
-                end.uniq
+                filtered_repos = packages.uniq do |pkg|
+                    [pkg.owner, pkg.name, pkg.branch]
+                end
 
-                @pull_requests = filtered_repos.flat_map do |repo|
+                @pull_requests = filtered_repos.flat_map do |pkg|
                     client.pull_requests(
-                        repo[:owner],
-                        repo[:name],
-                        base: repo[:branch],
+                        pkg.owner,
+                        pkg.name,
+                        base: pkg.branch,
                         state: 'open'
                     )
                 end
