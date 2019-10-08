@@ -12,16 +12,14 @@ module Autoproj
             option :update, type: 'boolean',
                             desc: 'do an update operation before starting'
             def start(*_args)
-                daemon = Daemon.new
+                daemon = Daemon.new(Autoproj.workspace)
                 daemon.update if options[:update]
                 daemon.start
-            rescue StandardError => e
-                Autoproj.error e.message
             end
 
             desc 'configure', 'Configures autoproj daemon plugin'
             def configure(*_args)
-                daemon = Daemon.new
+                daemon = Daemon.new(Autoproj.workspace)
                 daemon.configure
             end
         end

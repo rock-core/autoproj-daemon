@@ -100,7 +100,7 @@ module Autoproj
                 end
             end
 
-            describe '#update' do
+            describe '#update' do # rubocop: disable Metrics/BlockLength
                 it 'triggers an autoproj update' do
                     flexmock(Main).should_receive(:start)
                                   .with(['update',
@@ -117,6 +117,17 @@ module Autoproj
                                          '--no-osdeps',
                                          '--no-interactive',
                                          ws.root_dir]).and_return { raise }
+                    refute cli.update
+                    assert cli.update_failed?
+                end
+                it 'prints error message in case of failure' do
+                    flexmock(Autoproj).should_receive(:error).with('foobar').once
+                    flexmock(Main).should_receive(:start)
+                                  .with(['update',
+                                         '--no-osdeps',
+                                         '--no-interactive',
+                                         ws.root_dir])
+                                  .and_return { raise ArgumentError, 'foobar' }
                     refute cli.update
                     assert cli.update_failed?
                 end
