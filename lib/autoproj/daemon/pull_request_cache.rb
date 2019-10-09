@@ -20,22 +20,20 @@ module Autoproj
                 @ws = workspace
             end
 
-            CachedPullRequest = Struct.new :base_owner, :base_name,
-                                           :number, :base_branch, :head_sha, :overrides
-
-            # @param [CachedPullRequest] cache
-            # @param [Github::PullRequest] pull_request
-            # @return [Boolean]
-            def same?(cache, pull_request)
-                cache.base_owner == pull_request.base_owner &&
-                    cache.base_name == pull_request.base_name &&
-                    cache.number == pull_request.number
-            end
+            CachedPullRequest =
+                Struct.new :base_owner, :base_name,
+                           :number, :base_branch, :head_sha, :overrides do
+                    def caches_pull_request?(pull_request)
+                        base_owner == pull_request.base_owner &&
+                            base_name == pull_request.base_name &&
+                            number == pull_request.number
+                    end
+                end
 
             # @param [Github::PullRequest] pull_request
             # @return [void]
             def add(pull_request, overrides)
-                pull_requests.delete_if { |pr| same?(pr, pull_request) }
+                pull_requests.delete_if { |pr| pr.caches_pull_request?(pull_request) }
                 pull_requests << CachedPullRequest.new(
                     pull_request.base_owner,
                     pull_request.base_name,
@@ -54,7 +52,7 @@ module Autoproj
             # @param [Github::PullRequest] pull_request
             # @return [Boolean]
             def changed?(pull_request, overrides)
-                found = pull_requests.find { |pr| same?(pr, pull_request) }
+                found = pull_requests.find { |pr| pr.caches_pull_request?(pull_request) }
                 return true unless found
 
                 found.overrides != overrides ||

@@ -6,27 +6,27 @@ require 'test_helper'
 module Autoproj
     # Main daemon module
     module Daemon
-        describe PullRequestCache do # rubocop: disable Metrics/BlockLength
+        # rubocop: disable Metrics/BlockLength
+        describe PullRequestCache::CachedPullRequest do
             before do
                 @ws = ws_create
-                @cache = PullRequestCache.new(ws)
+                @cached = PullRequestCache::CachedPullRequest.new(
+                    'rock-core',
+                    'pkg',
+                    1,
+                    'master',
+                    'abcdef'
+                )
             end
 
-            describe '#same?' do # rubocop: disable Metrics/BlockLength
+            describe '#caches_pull_request?' do # rubocop: disable Metrics/BlockLength
                 it 'returns true if cached entry and PR are the same' do
                     pr = create_pull_request(base_owner: 'rock-core',
                                              base_name: 'pkg',
                                              number: 1,
                                              base_branch: 'master',
                                              head_sha: 'abcdef')
-                    cached = PullRequestCache::CachedPullRequest.new(
-                        'rock-core',
-                        'pkg',
-                        1,
-                        'develop',
-                        'ghijkl'
-                    )
-                    assert @cache.same?(cached, pr)
+                    assert @cached.caches_pull_request?(pr)
                 end
                 it 'returns false if base owners are different' do
                     pr = create_pull_request(base_owner: 'rock-drivers',
@@ -34,14 +34,7 @@ module Autoproj
                                              number: 1,
                                              base_branch: 'master',
                                              head_sha: 'abcdef')
-                    cached = PullRequestCache::CachedPullRequest.new(
-                        'rock-core',
-                        'pkg',
-                        1,
-                        'master',
-                        'abcdef'
-                    )
-                    refute @cache.same?(cached, pr)
+                    refute @cached.caches_pull_request?(pr)
                 end
                 it 'returns false if base names are different' do
                     pr = create_pull_request(base_owner: 'rock-core',
@@ -49,14 +42,7 @@ module Autoproj
                                              number: 1,
                                              base_branch: 'master',
                                              head_sha: 'abcdef')
-                    cached = PullRequestCache::CachedPullRequest.new(
-                        'rock-core',
-                        'pkg',
-                        1,
-                        'master',
-                        'abcdef'
-                    )
-                    refute @cache.same?(cached, pr)
+                    refute @cached.caches_pull_request?(pr)
                 end
                 it 'returns false if numbers are different' do
                     pr = create_pull_request(base_owner: 'rock-core',
@@ -64,17 +50,17 @@ module Autoproj
                                              number: 2,
                                              base_branch: 'master',
                                              head_sha: 'abcdef')
-                    cached = PullRequestCache::CachedPullRequest.new(
-                        'rock-core',
-                        'pkg',
-                        1,
-                        'master',
-                        'abcdef'
-                    )
-                    refute @cache.same?(cached, pr)
+                    refute @cached.caches_pull_request?(pr)
                 end
             end
+        end
+        # rubocop: enable Metrics/BlockLength
 
+        describe PullRequestCache do # rubocop: disable Metrics/BlockLength
+            before do
+                @ws = ws_create
+                @cache = PullRequestCache.new(ws)
+            end
             describe '#add' do # rubocop: disable Metrics/BlockLength
                 it 'adds a pull request to the cache' do
                     pr = create_pull_request(base_owner: 'rock-core',
