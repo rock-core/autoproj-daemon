@@ -12,11 +12,12 @@ module Autoproj
         # underlying functionality of each CLI subcommand. `autoproj-daemon` follows the
         # same pattern, and registers its subcommand in {MainDaemon} while implementing
         # the functionality in this class
-        class Daemon < InspectionTool
+        class Daemon
             attr_reader :watcher
-            def initialize(*args)
-                super
-                ws.config.load
+            attr_reader :ws
+            def initialize(workspace)
+                @ws = workspace
+                ws.config.load if File.exist?(ws.config_file_path)
                 @update_failed = false
             end
 
@@ -115,13 +116,19 @@ module Autoproj
             #
             # @return [Boolean] whether the update failed or not
             def update
+                Main.default_report_on_package_failures = :raise
                 Main.start(
                     ['update', '--no-osdeps', '--no-interactive', ws.root_dir]
                 )
                 @update_failed = false
                 true
-            rescue StandardError
+            rescue StandardError => e
+                # if this is true, the only thing the daemon
+                # should do is update the workspace on push events,
+                # no PR syncing and no triggering of builds
+                # on PR events
                 @update_failed = true
+                Autoproj.error e.message
                 false
             end
 

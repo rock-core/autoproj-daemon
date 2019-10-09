@@ -12,6 +12,7 @@ module Autoproj
         describe MainDaemon do # rubocop: disable Metrics/BlockLength
             before do
                 @ws = ws_create
+                @ws.save_config
             end
             describe '#start' do
                 it 'starts the daemon' do
@@ -27,16 +28,6 @@ module Autoproj
                     flexmock(Daemon).new_instances.should_receive(:start).once.ordered
                     in_ws do
                         MainDaemon.start(%w[start --update])
-                    end
-                end
-
-                it 'prints error message in case of failure' do
-                    flexmock(Autoproj).should_receive(:error).with('foobar').once
-                    flexmock(Daemon).new_instances.should_receive(:update).never
-                    flexmock(Daemon).new_instances.should_receive(:start).once
-                                    .and_return { raise ArgumentError, 'foobar' }
-                    in_ws do
-                        MainDaemon.start(%w[start])
                     end
                 end
             end
