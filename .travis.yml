@@ -13,5 +13,5 @@ install:
     - gem install bundler
     - bundler install --path vendor/bundle
 script:
-    - bundler exec rake test
+    - AUTOPROJ_SKIP_GITHUB_API_TESTS=1 bundler exec rake test
 
