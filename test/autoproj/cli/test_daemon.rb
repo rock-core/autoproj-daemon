@@ -134,6 +134,7 @@ module Autoproj
             end
 
             describe '#start' do # rubocop: disable Metrics/BlockLength
+                before { skip }
                 it 'raises if daemon is not properly configured' do
                     assert_raises(Autoproj::ConfigError) do
                         cli.start

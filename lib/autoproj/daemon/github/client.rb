@@ -4,6 +4,8 @@ require 'json'
 require 'octokit'
 require 'autoproj/daemon/github/branch'
 require 'autoproj/daemon/github/pull_request'
+require 'autoproj/daemon/github/push_event'
+require 'autoproj/daemon/github/pull_request_event'
 
 module Autoproj
     module Daemon
@@ -20,6 +22,20 @@ module Autoproj
                     @client.pull_requests("#{owner}/#{name}", options).map do |pr|
                         PullRequest.new(pr.to_hash)
                     end
+                end
+
+                # @return [Array<PushEvent, PullRequestEvent>]
+                def fetch_events(owner)
+                    @client.user_events(owner).map do |event|
+                        type = event['type']
+                        next unless %w[PullRequestEvent PushEvent].include? type
+
+                        if type == 'PullRequestEvent'
+                            PullRequestEvent.new(event.to_hash)
+                        else
+                            PushEvent.new(event.to_hash)
+                        end
+                    end.compact
                 end
 
                 # @return [Array<Branch>]

@@ -8,7 +8,7 @@ require 'minitest/spec'
 
 require 'rubygems/package'
 
-def create_pull_request(options = {})
+def create_pull_request(options)
     Autoproj::Daemon::Github::PullRequest.new(
         state: options[:state],
         number: options[:number],
@@ -36,12 +36,39 @@ def create_pull_request(options = {})
     )
 end
 
-def create_branch(owner, name, options = {})
+def create_branch(owner, name, options)
     Autoproj::Daemon::Github::Branch.new(
         owner, name,
         name: options[:branch_name],
         commit: {
             sha: options[:sha]
         }
+    )
+end
+
+def create_pull_request_event(options)
+    pr = create_pull_request(
+        base_owner: options[:base_owner],
+        base_name: options[:base_name],
+        base_branch: options[:base_branch]
+    )
+
+    Autoproj::Daemon::Github::PullRequestEvent.new(
+        payload: {
+            pull_request: pr.instance_variable_get(:@model)
+        },
+        created_at: options[:created_at]
+    )
+end
+
+def create_push_event(options)
+    Autoproj::Daemon::Github::PushEvent.new(
+        repo: {
+            name: "#{options[:owner]}/#{options[:name]}"
+        },
+        payload: {
+            ref: "refs/heads/#{options[:branch]}"
+        },
+        created_at: options[:created_at]
     )
 end

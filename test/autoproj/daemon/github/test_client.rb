@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require 'octokit'
 require 'autoproj/daemon/github/client'
 
 # Autoproj's main module
@@ -8,7 +9,7 @@ module Autoproj
     module Daemon
         # Github API main module
         module Github
-            describe Client do
+            describe Client do # rubocop: disable Metrics/BlockLength
                 attr_reader :client
                 before do
                     skip if ENV['AUTOPROJ_SKIP_GITHUB_API_TESTS']
@@ -32,6 +33,23 @@ module Autoproj
                 it 'returns github last reponse time' do
                     client.rate_limit_remaining
                     assert Time, client.last_response_time.class
+                end
+
+                it 'returns a compact Array of events' do
+                    events = [
+                        { 'type' => 'PushEvent' },
+                        { 'type' => 'PullRequestEvent' },
+                        { 'type' => 'CreateEvent' }
+                    ]
+
+                    flexmock(Octokit::Client).new_instances.should_receive(:user_events)
+                                             .with('rock-core').and_return(events)
+
+                    @client = Client.new(auto_paginate: false)
+                    fetched_events = client.fetch_events('rock-core')
+                    assert_equal 2, fetched_events.size
+                    assert fetched_events.first.kind_of? PushEvent
+                    assert fetched_events.last.kind_of? PullRequestEvent
                 end
             end
         end
