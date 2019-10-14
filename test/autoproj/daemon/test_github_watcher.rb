@@ -122,7 +122,10 @@ module Autoproj
                     pr = create_pull_request(base_owner: 'rock-core',
                                              base_name: 'tools-syskit',
                                              number: 1,
-                                             base_branch: 'feature',
+                                             base_branch: 'master',
+                                             head_owner: 'rock-core',
+                                             head_name: 'tools-syskit',
+                                             head_branch: 'feature',
                                              head_sha: 'abcdef')
 
                     @cache.add(pr, ['tools-syskit' => { 'remote_branch' => 'feature' }])

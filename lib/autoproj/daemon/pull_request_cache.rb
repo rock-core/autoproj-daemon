@@ -22,7 +22,9 @@ module Autoproj
 
             CachedPullRequest =
                 Struct.new :base_owner, :base_name,
-                           :number, :base_branch, :head_sha, :overrides do
+                           :number, :base_branch,
+                           :head_owner, :head_name, :head_branch,
+                           :head_sha, :overrides do
                     def caches_pull_request?(pull_request)
                         base_owner == pull_request.base_owner &&
                             base_name == pull_request.base_name &&
@@ -32,16 +34,27 @@ module Autoproj
 
             # @param [Github::PullRequest] pull_request
             # @return [void]
-            def add(pull_request, overrides)
+            def delete(pull_request)
                 pull_requests.delete_if { |pr| pr.caches_pull_request?(pull_request) }
-                pull_requests << CachedPullRequest.new(
+            end
+
+            # @param [Github::PullRequest] pull_request
+            # @return [CachedPullRequest]
+            def add(pull_request, overrides)
+                delete(pull_request)
+                cached = CachedPullRequest.new(
                     pull_request.base_owner,
                     pull_request.base_name,
                     pull_request.number,
                     pull_request.base_branch,
+                    pull_request.head_owner,
+                    pull_request.head_name,
+                    pull_request.head_branch,
                     pull_request.head_sha,
                     overrides
                 )
+                pull_requests << cached
+                cached
             end
 
             # @return [void]
@@ -50,9 +63,15 @@ module Autoproj
             end
 
             # @param [Github::PullRequest] pull_request
+            # @return [CachedPullRequest, nil]
+            def cached(pull_request)
+                pull_requests.find { |pr| pr.caches_pull_request?(pull_request) }
+            end
+
+            # @param [Github::PullRequest] pull_request
             # @return [Boolean]
             def changed?(pull_request, overrides)
-                found = pull_requests.find { |pr| pr.caches_pull_request?(pull_request) }
+                found = cached(pull_request)
                 return true unless found
 
                 found.overrides != overrides ||

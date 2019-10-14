@@ -7,6 +7,7 @@ module Autoproj
         module Github
             # A PullRequest model representation
             class PullRequest
+                attr_reader :model
                 def initialize(model)
                     @model = JSON.parse(model.to_json)
                 end
@@ -64,6 +65,10 @@ module Autoproj
                 # @return [String]
                 def head_name
                     @model['head']['repo']['name']
+                end
+
+                def ==(other)
+                    model == other.model
                 end
             end
         end

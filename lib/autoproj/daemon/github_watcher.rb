@@ -57,7 +57,7 @@ module Autoproj
             # @param [String] name
             # @param [String] branch
             # @return [Boolean]
-            def to_branch?(owner, name, branch)
+            def to_mainline?(owner, name, branch)
                 packages.any? do |pkg|
                     pkg.owner == owner && pkg.name == name && pkg.branch == branch
                 end
@@ -69,22 +69,21 @@ module Autoproj
             # @return [Boolean]
             def to_pull_request?(owner, name, branch)
                 cache.pull_requests.any? do |pr|
-                    pr.base_owner == owner && pr.base_name == name &&
-                        pr.base_branch == branch
+                    pr.head_owner == owner && pr.head_name == name &&
+                        pr.head_branch == branch
                 end
             end
 
             # @param [Array<Github::PushEvent, Github::PullRequestEvent>] events
             # @return [Array<Github::PushEvent, Github::PullRequestEvent>]
             def filter_events(events)
-                # TODO: Also allow pushes to a PR to a relevant branch
                 events.select do |event|
                     if event.kind_of? Github::PushEvent
-                        to_branch?(event.owner, event.name, event.branch) ||
+                        to_mainline?(event.owner, event.name, event.branch) ||
                             to_pull_request?(event.owner, event.name, event.branch)
                     elsif event.kind_of? Github::PullRequestEvent
                         pr = event.pull_request
-                        to_branch?(pr.base_owner, pr.base_name, pr.base_branch)
+                        to_mainline?(pr.base_owner, pr.base_name, pr.base_branch)
                     else
                         false
                     end
@@ -115,14 +114,49 @@ module Autoproj
 
             # @param [Github::PushEvent] push_event
             # @return [void]
-            def call_push_hooks(push_event)
-                @push_hooks.each { |hook| hook.call(push_event) }
+            def call_push_hooks(push_event, **options)
+                @push_hooks.each { |hook| hook.call(push_event, options) }
             end
 
             # @param [Github::PullRequestEvent] pull_request_event
             # @return [void]
             def call_pull_request_hooks(pull_request_event)
                 @pull_request_hooks.each { |hook| hook.call(pull_request_event) }
+            end
+
+            # @param [Github::PushEvent] push_event
+            # @return [PackageRepository, nil]
+            def package_by_push_event(push_event)
+                packages.find do |pkg|
+                    pkg.owner == push_event.owner &&
+                        pkg.name == push_event.name &&
+                        pkg.branch == push_event.branch
+                end
+            end
+
+            # @param [Github::PushEvent] push_event
+            # @return [void]
+            def dispatch_push_event(push_event)
+                to_mainline = to_mainline?(
+                    push_event.owner, push_event.name, push_event.branch
+                )
+                if to_mainline
+                    package = package_by_push_event(push_event)
+                    return if package.head_sha == push_event.head_sha
+                else
+                    cached_pull_request = cache.pull_requests.find do |pr|
+                        pr.head_owner == push_event.owner &&
+                            pr.head_name == push_event.name &&
+                            pr.head_branch == push_event.branch
+                    end
+                    pull_request = client.pull_requests(
+                        cached_pull_request.base_owner,
+                        cached_pull_request.base_name,
+                        number: cached_pull_request.number
+                    ).first
+                end
+                call_push_hooks(push_event, mainline: to_mainline,
+                                            pull_request: pull_request)
             end
 
             # @param [Array] events An array of events
@@ -139,7 +173,12 @@ module Autoproj
                     last_pull_request_event =
                         pull_request_events.max_by(&:created_at)
 
-                    call_push_hooks(last_push_event)
+                    dispatch_push_event(last_push_event) if last_push_event
+                    next unless last_pull_request_event
+
+                    pr = last_pull_request_event.pull_request
+                    next if !pr.open? && !cache.cached(pr)
+
                     call_pull_request_hooks(last_pull_request_event)
                 end
             end

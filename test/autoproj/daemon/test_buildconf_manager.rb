@@ -17,17 +17,18 @@ module Autoproj
                 @cache = PullRequestCache.new(ws)
 
                 @mock_package = flexmock
-                @main = flexmock(@ws).should_receive(
-                    'manifest.main_package_set.create_autobuild_package'
-                ).and_return(@mock_package)
                 @mock_package.should_receive(:importer)
+                flexmock(@buildconf).should_receive(:autobuild).and_return(@mock_package)
+
                 @manager = BuildconfManager.new(
                     @buildconf, @client, @packages, @cache, @ws
                 )
             end
 
             def add_package(pkg_name, owner, name, vcs = {}, options = {})
-                @packages << PackageRepository.new(pkg_name, owner, name, vcs)
+                package = PackageRepository.new(pkg_name, owner, name, vcs)
+                flexmock(package).should_receive(:autobuild).and_return(@mock_package)
+                @packages << package
                 return if options[:no_expect]
 
                 branch = vcs[:branch] || vcs[:remote_branch] || 'master'

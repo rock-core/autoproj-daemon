@@ -46,9 +46,18 @@ module Autoproj
                 end
 
                 # @param [Branch] branch A branch to delete
+                # @return [void]
                 def delete_branch(branch)
+                    delete_branch_by_name(branch.owner, branch.name, branch.branch_name)
+                end
+
+                # @param [String] owner
+                # @param [String] name
+                # @param [String] branch_name
+                # @return [void]
+                def delete_branch_by_name(owner, name, branch_name)
                     @client.delete_branch(
-                        "#{branch.owner}/#{branch.name}", branch.branch_name
+                        "#{owner}/#{name}", branch_name
                     )
                 end
 

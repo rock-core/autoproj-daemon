@@ -47,7 +47,7 @@ module Autoproj
                 @pull_requests = []
                 @branches = []
                 @ws = workspace
-                @main = ws.manifest.main_package_set.create_autobuild_package
+                @main = @buildconf.autobuild
                 @importer = @main.importer
                 @cache = cache
             end
@@ -135,17 +135,16 @@ module Autoproj
                 '999-autoproj.yml'
             ).freeze
 
-            # @param [Github::PullRequest] pull_request
+            # @param [String] branch_name
+            # @param [Array<Hash>] overrides
             # @return [Github::Branch]
-            def create_branch_for_pr(branch_name, pull_request)
-                overrides = overrides_for_pull_request(pull_request)
+            def commit_and_push_overrides(branch_name, overrides)
                 commit_id =
                     Autoproj::Ops::Snapshot.create_commit(
                         @main, OVERRIDES_FILE, OVERRIDES_COMMIT_MSG, real_author: false
                     ) do |io|
                         YAML.dump(overrides, io)
                     end
-
                 @importer.run_git_bare(
                     @main,
                     'update-ref',
@@ -157,8 +156,14 @@ module Autoproj
                 @importer.run_git_bare(
                     @main, 'push', '-fu', @importer.remote_name, branch_name
                 )
+                client.branch(buildconf.owner, buildconf.name, branch_name)
+            end
 
-                created = client.branch(buildconf.owner, buildconf.name, branch_name)
+            # @param [Github::PullRequest] pull_request
+            # @return [Github::Branch]
+            def create_branch_for_pr(branch_name, pull_request)
+                overrides = overrides_for_pull_request(pull_request)
+                created = commit_and_push_overrides(branch_name, overrides)
                 cache.add(pull_request, overrides)
                 created
             end

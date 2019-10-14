@@ -23,6 +23,8 @@ module Autoproj
                     .should_receive(:from_workspace_root).and_return(@manifest)
                 flexmock(Autoproj::Daemon::GithubWatcher)
                     .new_instances.should_receive(:watch)
+                flexmock(Autoproj::Daemon::BuildconfManager)
+                    .new_instances.should_receive(:synchronize_branches)
             end
 
             def define_package(name, vcs)
@@ -33,54 +35,86 @@ module Autoproj
                 @manifest.add_package(pkg)
             end
 
-            describe '#parse_repo_url' do # rubocop: disable Metrics/BlockLength
+            def define_package_set(name, vcs)
+                pkg_set = Autoproj::InstallationManifest::PackageSet.new(
+                    name, vcs, "/.autoproj/remotes/#{name}", "/autoproj/remotes/#{name}"
+                )
+
+                @manifest.add_package_set(pkg_set)
+            end
+
+            describe '#resolve_packages' do
+                it 'returns an array of all packages and package sets' do
+                    pkgs = []
+                    pkgs << define_package('foo', type: 'git',
+                                                  url: 'https://github.com/owner/foo',
+                                                  remote_branch: 'develop')
+
+                    pkgs << define_package('bar', type: 'git',
+                                                  url: 'https://github.com/owner/bar',
+                                                  remote_branch: 'master')
+
+                    pkgs << define_package_set('core', type: 'git',
+                                                       url: 'https://github.com/owner/core',
+                                                       remote_branch: 'master')
+
+                    pkgs << define_package_set('utils', type: 'git',
+                                                        url: 'https://github.com/owner/utils',
+                                                        remote_branch: 'master')
+
+                    assert_equal pkgs, cli.resolve_packages
+                end
+            end
+
+            describe '#parse_repo_url_from_vcs' do # rubocop: disable Metrics/BlockLength
                 it 'parses an http url' do
-                    owner, name = cli.parse_repo_url(
-                        'http://github.com/rock-core/autoproj'
+                    owner, name = cli.parse_repo_url_from_vcs(
+                        type: 'git',
+                        url: 'http://github.com/rock-core/autoproj'
                     )
                     assert_equal 'rock-core', owner
                     assert_equal 'autoproj', name
                 end
 
                 it 'parses a ssh url' do
-                    owner, name = cli.parse_repo_url(
-                        'git@github.com:rock-core/autoproj'
+                    owner, name = cli.parse_repo_url_from_vcs(
+                        type: 'git',
+                        url: 'git@github.com:rock-core/autoproj'
                     )
                     assert_equal 'rock-core', owner
                     assert_equal 'autoproj', name
                 end
 
                 it 'removes git extension from repo name' do
-                    owner, name = cli.parse_repo_url(
-                        'git@github.com:rock-core/autoproj.git'
+                    owner, name = cli.parse_repo_url_from_vcs(
+                        type: 'git',
+                        url: 'git@github.com:rock-core/autoproj.git'
                     )
                     assert_equal 'rock-core', owner
                     assert_equal 'autoproj', name
                 end
 
                 it 'returns nil for incomplete urls' do
-                    assert_nil cli.parse_repo_url(
-                        'git@github.com:rock-core/'
+                    assert_nil cli.parse_repo_url_from_vcs(
+                        type: 'git',
+                        url: 'git@github.com:rock-core/'
                     )
                 end
-            end
 
-            describe 'VALID_URL_RX' do
+                it 'returns nil if vcs type is not git' do
+                    assert_nil cli.parse_repo_url_from_vcs(
+                        type: 'archive',
+                        url: 'http://github.com/rock-core/autoproj/release/autoproj-2.1.tgz'
+                    )
+                end
                 it 'allows only github urls' do
-                    assert_nil Daemon::VALID_URL_RX.match(
-                        'git@bitbucket.org:rock-core/autoproj'
+                    assert_nil cli.parse_repo_url_from_vcs(
+                        type: 'git',
+                        url: 'git@bitbucket.org:rock-core/autoproj'
                     )
-                    assert_nil Daemon::VALID_URL_RX.match(
-                        'http://bitbucket.org:rock-core/autoproj'
-                    )
-                    assert Daemon::VALID_URL_RX.match(
-                        'git@github.com:rock-core/autoproj'
-                    )
-                    assert Daemon::VALID_URL_RX.match(
-                        'ssh://github.com:rock-core/autoproj'
-                    )
-                    assert Daemon::VALID_URL_RX.match(
-                        'http://github.com:rock-core/autoproj'
+                    assert_nil cli.parse_repo_url_from_vcs(
+                        type: 'git',
+                        url: 'http://bitbucket.org:rock-core/autoproj'
                     )
                 end
             end
@@ -89,13 +123,8 @@ module Autoproj
                 it 'updates the workspace on push event' do
                     watcher = flexmock
                     flexmock(cli).should_receive(:watcher).and_return(watcher)
-                    flexmock(Process)
-                        .should_receive(:exec)
-                        .with(Gem.ruby, $PROGRAM_NAME, 'daemon',
-                              'start', '--update').once
-
                     watcher.should_receive(:add_push_hook)
-                           .and_yield('rock-core', 'autoproj')
+                    watcher.should_receive(:add_pull_request_hook)
                     cli.setup_hooks
                 end
             end
@@ -133,62 +162,11 @@ module Autoproj
                 end
             end
 
-            describe '#start' do # rubocop: disable Metrics/BlockLength
-                before { skip }
+            describe '#packages_to_watch' do
                 it 'raises if daemon is not properly configured' do
                     assert_raises(Autoproj::ConfigError) do
                         cli.start
                     end
-                end
-
-                it 'adds https repositories to github watcher' do
-                    define_package('foo', type: 'git',
-                                          url: 'https://github.com/owner/foo',
-                                          remote_branch: 'develop')
-
-                    flexmock(Autoproj::Daemon::GithubWatcher)
-                        .new_instances.should_receive(:add_repository)
-                        .with('owner', 'foo', 'develop').once
-                    cli.ws.config.daemon_api_key = 'abcdefg'
-                    cli.start
-                end
-
-                it 'adds ssh repositories to github watcher' do
-                    define_package('bar', type: 'git',
-                                          url: 'git@github.com:owner/bar',
-                                          remote_branch: 'master')
-
-                    flexmock(Autoproj::Daemon::GithubWatcher)
-                        .new_instances.should_receive(:add_repository)
-                        .with('owner', 'bar', 'master').once
-                    cli.ws.config.daemon_api_key = 'abcdefg'
-                    cli.start
-                end
-
-                it 'does not watch repositories not hosted at github' do
-                    define_package('bar', type: 'git',
-                                          url: 'git@bitbucket.org.com:owner/bar',
-                                          remote_branch: 'develop')
-
-                    flexmock(Autoproj::Daemon::GithubWatcher)
-                        .new_instances.should_receive(:add_repository).with(any).never
-                    cli.ws.config.daemon_api_key = 'abcdefg'
-                    cli.start
-                end
-
-                it 'watches main package set if it has a valid vcs definition' do
-                    vcs = Autoproj::VCSDefinition.new(
-                        'git',
-                        'git@github.com:foo/buildconf.git',
-                        {}
-                    )
-                    flexmock(ws.manifest.main_package_set)
-                        .should_receive(:vcs).and_return(vcs)
-                    flexmock(Autoproj::Daemon::GithubWatcher)
-                        .new_instances.should_receive(:add_repository)
-                        .with('foo', 'buildconf', 'master').once
-                    cli.ws.config.daemon_api_key = 'abcdefg'
-                    cli.start
                 end
             end
 
