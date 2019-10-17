@@ -68,6 +68,45 @@ module Autoproj
                     end
                 end
             end
+            describe '#to_mainline?' do
+                before do
+                    add_package('drivers/gps_base', 'rock-core',
+                                'drivers-gps_base', 'master')
+                end
+                it 'returns true if the event is to a mainline branch' do
+                    assert watcher.to_mainline?('rock-core', 'drivers-gps_base',
+                                                'master')
+                end
+                it 'returns false if the event is to a feature branch' do
+                    refute watcher.to_mainline?('rock-core', 'drivers-gps_base',
+                                                'feature')
+                end
+            end
+
+            describe '#to_pull_request?' do
+                before do
+                    @pr = create_pull_request(
+                        base_owner: 'rock-core',
+                        base_name: 'tools-syskit',
+                        number: 1,
+                        base_branch: 'master',
+                        head_owner: 'rock-core',
+                        head_name: 'tools-syskit',
+                        head_branch: 'feature',
+                        head_sha: 'abcdef'
+                    )
+                    @cache.add(@pr, ['tools-syskit' => { 'remote_branch' => 'feature' }])
+                end
+                it 'returns true if the event is to a tracked PR' do
+                    assert watcher.to_pull_request?('rock-core', 'tools-syskit',
+                                                    'feature')
+                end
+                it 'returns false if the event is to an unkown branch' do
+                    refute watcher.to_pull_request?('rock-core', 'tools-syskit',
+                                                    'hotfix')
+                end
+            end
+
             describe '#filter_events' do # rubocop: disable Metrics/BlockLength
                 before do
                     @events = []
@@ -237,11 +276,81 @@ module Autoproj
             end
             # rubocop: enable Metrics/BlockLength
 
-            describe '#handle_events' do # rubocop: disable Metrics/BlockLength
+            describe '#package_by_push_event?' do
+                before do
+                    @pkg = add_package('drivers/gps_base', 'rock-core',
+                                       'drivers-gps_base', 'master')
+                end
+                it 'returns a package definition that is the target of a push event' do
+                    event = create_push_event(
+                        owner: 'rock-core',
+                        name: 'drivers-gps_base',
+                        branch: 'master',
+                        created_at: Time.now
+                    )
+
+                    assert_equal @pkg.first, watcher.package_by_push_event(event)
+                end
+                it 'returns nil if the push target is an untracked repository' do
+                    event = create_push_event(
+                        owner: 'rock-core',
+                        name: 'drivers-iodrivers_base',
+                        branch: 'master',
+                        created_at: Time.now
+                    )
+
+                    assert_nil watcher.package_by_push_event(event)
+                end
+            end
+
+            describe '#dispatch_push_event' do # rubocop: disable Metrics/BlockLength
+                before do
+                    @pkgs = add_package('drivers/gps_base', 'rock-core',
+                                        'drivers-gps_base', 'master')
+                    flexmock(@pkgs.first).should_receive(:head_sha)
+                                         .and_return('abcdef')
+                end
+                it 'calls push hooks if a mainline push has a different head' do
+                    event = create_push_event(
+                        owner: 'rock-core',
+                        name: 'drivers-gps_base',
+                        branch: 'master',
+                        head_sha: 'abcdef',
+                        created_at: Time.now
+                    )
+
+                    handler = flexmock
+                    handler.should_receive(:handle).with(event, mainline: true,
+                                                                pull_request: nil).never
+                    watcher.add_push_hook do |push_event, **options|
+                        handler.handle(push_event, options)
+                    end
+                    watcher.dispatch_push_event(event)
+                end
+                it 'do not call push hooks if the mainline push has the same head' do
+                    event = create_push_event(
+                        owner: 'rock-core',
+                        name: 'drivers-gps_base',
+                        branch: 'master',
+                        head_sha: 'eghijk',
+                        created_at: Time.now
+                    )
+
+                    handler = flexmock
+                    handler.should_receive(:handle).with(event, mainline: true,
+                                                                pull_request: nil).once
+                    watcher.add_push_hook do |push_event, **options|
+                        handler.handle(push_event, options)
+                    end
+                    watcher.dispatch_push_event(event)
+                end
+            end
+
+            describe '#handle_owner_events' do # rubocop: disable Metrics/BlockLength
                 before do
                     @events = []
                 end
-                it 'handles the latest push' do
+                it 'handles the latest push' do # rubocop: disable Metrics/BlockLength
                     @events << create_push_event(
                         owner: 'rock-core',
                         name: 'drivers-gps_ublox',
@@ -260,8 +369,10 @@ module Autoproj
                         branch: 'feature',
                         created_at: Time.utc(2019, 'sep', 22, 23, 53, 45)
                     )
-                    add_package('drivers/gps_ublox', 'rock-core', 'drivers-gps_ublox')
+                    pkgs =
+                        add_package('drivers/gps_ublox', 'rock-core', 'drivers-gps_ublox')
 
+                    flexmock(pkgs.first).should_receive(:head_sha).and_return('abc')
                     handler = flexmock(interactive?: false)
                     handler.should_receive(:handle).with(@events[1]).once
 
@@ -270,33 +381,84 @@ module Autoproj
                     end
                     watcher.handle_owner_events(@events)
                 end
-                # rubocop: disable Metrics/BlockLength
-                it 'handles the latest pull request' do
+                it 'does not dispatch nil push events' do
                     @events << create_pull_request_event(
                         base_owner: 'tidewise',
                         base_name: 'drivers-gps_ublox',
                         base_branch: 'master',
                         created_at: Time.utc(2019, 'sep', 22, 23, 53, 35)
                     )
+                    add_package('drivers/gps_ublox', 'tidewise', 'drivers-gps_ublox')
+                    flexmock(watcher).should_receive(:dispatch_push_event)
+                                     .with(any).never
+                    watcher.handle_owner_events(@events)
+                end
+                # rubocop: disable Metrics/BlockLength
+                it 'handles the latest pull request' do
                     @events << create_pull_request_event(
                         base_owner: 'tidewise',
                         base_name: 'drivers-gps_ublox',
                         base_branch: 'master',
+                        state: 'open',
+                        created_at: Time.utc(2019, 'sep', 22, 23, 53, 35)
+                    )
+                    @events << create_pull_request_event(
+                        base_owner: 'tidewise',
+                        base_name: 'drivers-gps_ublox',
+                        base_branch: 'master',
+                        state: 'open',
                         created_at: Time.utc(2019, 'sep', 22, 23, 53, 40)
                     )
                     @events << create_pull_request_event(
                         base_owner: 'rock-core',
                         base_name: 'drivers-gps_base',
                         base_branch: 'master',
+                        state: 'open',
                         created_at: Time.utc(2019, 'sep', 22, 23, 53, 45)
                     )
                     add_package('drivers/gps_ublox', 'tidewise', 'drivers-gps_ublox')
                     add_package('drivers/gps_base', 'rock-core', 'drivers-gps_base')
 
-                    handler = flexmock(interactive?: false)
+                    handler = flexmock
                     handler.should_receive(:handle).with(@events[1]).once
                     handler.should_receive(:handle).with(@events[2]).once
 
+                    watcher.add_pull_request_hook do |event|
+                        handler.handle(event)
+                    end
+                    watcher.handle_owner_events(@events)
+                end
+                it 'handles close events of cached pull requests' do
+                    @events << create_pull_request_event(
+                        base_owner: 'tidewise',
+                        base_name: 'drivers-gps_ublox',
+                        base_branch: 'master',
+                        state: 'close',
+                        created_at: Time.utc(2019, 'sep', 22, 23, 53, 35)
+                    )
+                    add_package('drivers/gps_ublox', 'tidewise', 'drivers-gps_ublox')
+                    @cache.add(@events.first.pull_request, [])
+
+                    handler = flexmock
+                    handler.should_receive(:handle).with(@events[0]).once
+
+                    watcher.add_pull_request_hook do |event|
+                        handler.handle(event)
+                    end
+                    watcher.handle_owner_events(@events)
+                end
+                it 'ignores close events of untracked pull requests' do
+                    @events << create_pull_request_event(
+                        base_owner: 'tidewise',
+                        base_name: 'drivers-gps_ublox',
+                        base_branch: 'master',
+                        state: 'close',
+                        created_at: Time.utc(2019, 'sep', 22, 23, 53, 35)
+                    )
+                    add_package('drivers/gps_ublox', 'tidewise', 'drivers-gps_ublox')
+
+                    handler = flexmock
+                    handler.should_receive(:handle).with(@events[0]).never
                     watcher.add_pull_request_hook do |event|
                         handler.handle(event)
                     end

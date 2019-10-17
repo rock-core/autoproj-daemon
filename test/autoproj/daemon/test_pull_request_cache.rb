@@ -102,7 +102,27 @@ module Autoproj
                 end
             end
 
-            describe '#changed' do # rubocop: disable Metrics/BlockLength
+            describe '#cached' do
+                it 'returns the cached PR' do
+                    pr = create_pull_request(base_owner: 'rock-core',
+                                             base_name: 'foobar',
+                                             number: 1,
+                                             base_branch: 'master',
+                                             head_sha: 'abcdef')
+                    cached = @cache.add(pr, ['pkg' => { 'remote_branch' => 'develop' }])
+                    assert_equal cached, @cache.cached(pr)
+                end
+                it 'returns nil if PR is not cached' do
+                    pr = create_pull_request(base_owner: 'rock-core',
+                                             base_name: 'foobar',
+                                             number: 1,
+                                             base_branch: 'master',
+                                             head_sha: 'abcdef')
+                    assert_nil @cache.cached(pr)
+                end
+            end
+
+            describe '#changed?' do # rubocop: disable Metrics/BlockLength
                 it 'returns true if PR is not cached' do
                     pr = create_pull_request(base_owner: 'rock-core',
                                              base_name: 'foobar',

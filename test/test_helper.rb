@@ -47,11 +47,10 @@ def create_branch(owner, name, options)
 end
 
 def create_pull_request_event(options)
-    pr = create_pull_request(
-        base_owner: options[:base_owner],
-        base_name: options[:base_name],
-        base_branch: options[:base_branch]
-    )
+    pr = options[:pull_request] || create_pull_request(base_owner: options[:base_owner],
+                                                       base_name: options[:base_name],
+                                                       base_branch: options[:base_branch],
+                                                       state: options[:state])
 
     Autoproj::Daemon::Github::PullRequestEvent.new(
         payload: {
@@ -67,6 +66,7 @@ def create_push_event(options)
             name: "#{options[:owner]}/#{options[:name]}"
         },
         payload: {
+            head: options[:head_sha],
             ref: "refs/heads/#{options[:branch]}"
         },
         created_at: options[:created_at]
