@@ -76,7 +76,10 @@ module Autoproj
                     return unless cache.changed?(pull_request, overrides)
 
                     branch_name =
-                        buildconf_manager.branch_name_by_pull_request(pull_request)
+                        Autoproj::Daemon::BuildconfManager.branch_name_by_pull_request(
+                            pull_request
+                        )
+
                     buildconf_manager.commit_and_push_overrides(branch_name, overrides)
                     cache.add(pull_request, overrides)
                     cache.dump
@@ -91,7 +94,8 @@ module Autoproj
             # @return [void]
             def handle_pull_request_event(pull_request_event)
                 pr = pull_request_event.pull_request
-                branch_name = buildconf_manager.branch_name_by_pull_request(pr)
+                branch_name =
+                    Autoproj::Daemon::BuildconfManager.branch_name_by_pull_request(pr)
 
                 if pr.open?
                     overrides = buildconf_manager.overrides_for_pull_request(pr)

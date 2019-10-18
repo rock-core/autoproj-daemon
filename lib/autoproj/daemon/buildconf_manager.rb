@@ -102,7 +102,7 @@ module Autoproj
             end
 
             # @return [String]
-            def branch_name_by_pull_request(pull_request)
+            def self.branch_name_by_pull_request(pull_request)
                 "autoproj/#{pull_request.base_owner}/"\
                     "#{pull_request.base_name}/pulls/#{pull_request.number}"
             end
@@ -113,7 +113,7 @@ module Autoproj
                 existing = []
 
                 pull_requests.each do |pr|
-                    branch_name = branch_name_by_pull_request(pr)
+                    branch_name = BuildconfManager.branch_name_by_pull_request(pr)
                     found_branch =
                         branches.find { |branch| branch.branch_name == branch_name }
 
@@ -208,7 +208,7 @@ module Autoproj
             # @return [Github::PullRequest, nil]
             def pull_request_by_branch(branch)
                 pull_requests.find do |pr|
-                    branch_name_by_pull_request(pr) == branch.branch_name
+                    BuildconfManager.branch_name_by_pull_request(pr) == branch.branch_name
                 end
             end
 

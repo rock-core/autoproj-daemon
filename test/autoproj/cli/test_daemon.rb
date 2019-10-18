@@ -157,11 +157,6 @@ module Autoproj
                         @buildconf_manager = flexmock
                         flexmock(cli).should_receive(:buildconf_manager)
                                      .and_return(@buildconf_manager)
-                        @buildconf_manager.should_receive(:branch_name_by_pull_request)
-                                          .with(@pull_request)
-                                          .and_return(
-                                              'rock-core/drivers-iodrivers_base/pulls/1'
-                                          )
                     end
                     it 'does not update buildconf branch if PR did not change' do
                         cli.cache.add(@pull_request, @overrides)
@@ -223,12 +218,6 @@ module Autoproj
                     flexmock(cli).should_receive(:buildconf_manager)
                                  .and_return(@buildconf_manager)
 
-                    @buildconf_manager.should_receive(:branch_name_by_pull_request)
-                                      .with(@pull_request)
-                                      .and_return(
-                                          'rock-core/drivers-iodrivers_base/pulls/1'
-                                      )
-
                     @buildconf_manager.should_receive(:overrides_for_pull_request)
                                       .with(@pull_request).and_return([])
                 end
@@ -267,7 +256,8 @@ module Autoproj
                     it 'handles errors if buildconf branch does not exist' do
                         flexmock(cli).should_receive('client.delete_branch_by_name')
                                      .with('rock-core', 'buildconf',
-                                           'rock-core/drivers-iodrivers_base/pulls/1')
+                                           'autoproj/rock-core/'\
+                                           'drivers-iodrivers_base/pulls/1')
                                      .and_raise(Octokit::UnprocessableEntity)
 
                         cli.handle_pull_request_event(@pull_request_event)
@@ -277,7 +267,8 @@ module Autoproj
 
                         flexmock(cli).should_receive('client.delete_branch_by_name')
                                      .with('rock-core', 'buildconf',
-                                           'rock-core/drivers-iodrivers_base/pulls/1')
+                                           'autoproj/rock-core/drivers-iodrivers_base/'\
+                                           'pulls/1')
 
                         refute cli.cache.changed?(@pull_request, [])
                         cli.handle_pull_request_event(@pull_request_event)
