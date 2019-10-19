@@ -156,8 +156,56 @@ module Autoproj
                             }
                         ]
                         @buildconf_manager = flexmock
+                        @buildconf_package = Autoproj::Daemon::PackageRepository.new(
+                            'main configuration',
+                            'rock-core',
+                            'buildconf',
+                            branch: 'master'
+                        )
+
+                        flexmock(cli).should_receive(:buildconf_package)
+                                     .and_return(@buildconf_package)
                         flexmock(cli).should_receive(:buildconf_manager)
                                      .and_return(@buildconf_manager)
+                    end
+                    it 'is ignored if the PR is on the buildconf' do
+                        event = create_push_event(
+                            owner: 'rock-core',
+                            name: 'buildconf',
+                            branch: 'feature',
+                            created_at: Time.now
+                        )
+                        pr = create_pull_request(
+                            base_owner: 'rock-core',
+                            base_name: 'buildconf',
+                            base_branch: 'master',
+                            head_owner: 'rock-core',
+                            head_name: 'buildconf',
+                            head_branch: 'feature',
+                            head_sha: 'abcdef',
+                            number: 1
+                        )
+                        pr_cached = create_pull_request(
+                            base_owner: 'rock-core',
+                            base_name: 'buildconf',
+                            base_branch: 'master',
+                            head_owner: 'rock-core',
+                            head_name: 'buildconf',
+                            head_branch: 'feature',
+                            head_sha: 'ghijkl',
+                            updated_at: Time.now - 2,
+                            number: 1
+                        )
+                        cli.cache.add(pr_cached, [])
+                        @buildconf_manager.should_receive(:overrides_for_pull_request)
+                                          .with(pr).and_return([])
+
+                        @buildconf_manager.should_receive(:commit_and_push_overrides)
+                                          .never
+
+                        flexmock(cli.bb).should_receive(:build).with(any).never
+                        cli.handle_push_event(event, mainline: false,
+                                                     pull_request: pr)
                     end
                     it 'does not update buildconf branch if PR did not change' do
                         cli.cache.add(@pull_request, @overrides)
@@ -166,6 +214,8 @@ module Autoproj
 
                         @buildconf_manager.should_receive(:commit_and_push_overrides)
                                           .never
+
+                        flexmock(cli.bb).should_receive(:build).with(any).never
                         cli.handle_push_event(@push_event, mainline: false,
                                                            pull_request: @pull_request)
                     end
@@ -229,6 +279,18 @@ module Autoproj
                                       .with(@pull_request).and_return([])
                 end
                 describe 'a PR is opened' do
+                    it 'is ignored if it is to the buildconf' do
+                        event = create_pull_request_event(
+                            base_owner: 'rock-core',
+                            base_name: 'buildconf',
+                            base_branch: 'master',
+                            created_at: Time.now,
+                            state: 'open'
+                        )
+
+                        flexmock(cli.bb).should_receive(:build).with(any).never
+                        cli.handle_pull_request_event(event)
+                    end
                     it 'does not update buildconf branch if the PR did not change' do
                         cli.cache.add(@pull_request, [])
                         @buildconf_manager.should_receive(:commit_and_push_overrides)
@@ -263,6 +325,19 @@ module Autoproj
                             pull_request: @pull_request,
                             created_at: Time.now
                         )
+                    end
+                    it 'is ignored if it is to the buildconf' do
+                        event = create_pull_request_event(
+                            base_owner: 'rock-core',
+                            base_name: 'buildconf',
+                            base_branch: 'master',
+                            state: 'closed',
+                            created_at: Time.now
+                        )
+
+                        flexmock(cli).should_receive('client.delete_branch_by_name')
+                                     .with(any).never
+                        cli.handle_pull_request_event(event)
                     end
                     it 'handles errors if buildconf branch does not exist' do
                         flexmock(cli).should_receive('client.delete_branch_by_name')
