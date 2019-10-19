@@ -144,7 +144,8 @@ module Autoproj
                                              base_name: 'foobar',
                                              number: 1,
                                              base_branch: 'master',
-                                             head_sha: 'ghijkl')
+                                             head_sha: 'ghijkl',
+                                             updated_at: Time.now + 2)
                     assert @cache.changed?(
                         pr, ['pkg' => { 'remote_branch' => 'develop' }]
                     )

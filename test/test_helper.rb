@@ -13,6 +13,7 @@ def create_pull_request(options)
         state: options[:state],
         number: options[:number],
         title: options[:title],
+        updated_at: options[:updated_at] || Time.now,
         base: {
             ref: options[:base_branch],
             sha: options[:base_sha],

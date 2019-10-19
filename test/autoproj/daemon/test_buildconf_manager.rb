@@ -310,7 +310,8 @@ module Autoproj
                                                     head_owner: 'g-arjones',
                                                     head_name: 'iodrivers_base_fork',
                                                     head_branch: 'add_feature',
-                                                    head_sha: 'efghij')
+                                                    head_sha: 'efghij',
+                                                    updated_at: Time.now - 2)
 
                     @cache.add(pr_cached, overrides)
                     @manager.update_branches
@@ -359,7 +360,8 @@ module Autoproj
                                                     head_owner: 'g-arjones',
                                                     head_name: 'iodrivers_base_fork',
                                                     head_branch: 'add_feature',
-                                                    head_sha: 'abcdef')
+                                                    head_sha: 'abcdef',
+                                                    updated_at: Time.now - 2)
 
                     @cache.add(pr_cached, overrides)
                     @manager.update_branches

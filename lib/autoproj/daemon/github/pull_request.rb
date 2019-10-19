@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'json'
+require 'time'
 
 module Autoproj
     module Daemon
@@ -65,6 +66,11 @@ module Autoproj
                 # @return [String]
                 def head_name
                     @model['head']['repo']['name']
+                end
+
+                # @return [Time]
+                def updated_at
+                    Time.parse(@model['updated_at'])
                 end
 
                 def ==(other)

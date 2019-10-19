@@ -154,6 +154,7 @@ module Autoproj
                         cached_pull_request.base_name,
                         number: cached_pull_request.number
                     ).first
+                    return unless pull_request
                 end
                 call_push_hooks(push_event, mainline: to_mainline,
                                             pull_request: pull_request)

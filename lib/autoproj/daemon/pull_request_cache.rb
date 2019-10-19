@@ -24,7 +24,7 @@ module Autoproj
                 Struct.new :base_owner, :base_name,
                            :number, :base_branch,
                            :head_owner, :head_name, :head_branch,
-                           :head_sha, :overrides do
+                           :head_sha, :updated_at, :overrides do
                     def caches_pull_request?(pull_request)
                         base_owner == pull_request.base_owner &&
                             base_name == pull_request.base_name &&
@@ -51,6 +51,7 @@ module Autoproj
                     pull_request.head_name,
                     pull_request.head_branch,
                     pull_request.head_sha,
+                    pull_request.updated_at,
                     overrides
                 )
                 pull_requests << cached
@@ -75,8 +76,9 @@ module Autoproj
                 return true unless found
 
                 found.overrides != overrides ||
-                    found.head_sha != pull_request.head_sha ||
-                    found.base_branch != pull_request.base_branch
+                    ((found.head_sha != pull_request.head_sha ||
+                    found.base_branch != pull_request.base_branch) &&
+                    pull_request.updated_at > found.updated_at)
             end
 
             CACHE_FILE = 'pull_request_cache.yml'
@@ -100,7 +102,8 @@ module Autoproj
                     return self
                 end
                 @pull_requests =
-                    YAML.safe_load(File.read(cache_file), [Symbol, CachedPullRequest])
+                    YAML.safe_load(File.read(cache_file),
+                                   [Symbol, CachedPullRequest, Time])
                 self
             end
 
