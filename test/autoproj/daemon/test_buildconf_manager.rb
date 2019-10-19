@@ -266,7 +266,10 @@ module Autoproj
                     @cache.add(pr, overrides)
                     @manager.update_branches
                     @manager.update_pull_requests
-                    flexmock(Autoproj).should_receive(:message).with(/Triggering/).once
+                    branch_name = 'autoproj/rock-core/drivers-iodrivers_base/pulls/12'
+                    flexmock(@manager.bb).should_receive(:build)
+                                         .with(branch: branch_name).once
+
                     @manager.trigger_build_if_branch_changed([branch])
                 end
                 it 'triggers if PR head sha changed' do
@@ -312,7 +315,10 @@ module Autoproj
                     @cache.add(pr_cached, overrides)
                     @manager.update_branches
                     @manager.update_pull_requests
-                    flexmock(Autoproj).should_receive(:message).with(/Triggering/).once
+                    branch_name = 'autoproj/rock-core/drivers-iodrivers_base/pulls/12'
+                    flexmock(@manager.bb).should_receive(:build)
+                                         .with(branch: branch_name).once
+
                     @manager.trigger_build_if_branch_changed([branch])
                 end
                 it 'triggers if PR base branch changed' do
@@ -358,7 +364,10 @@ module Autoproj
                     @cache.add(pr_cached, overrides)
                     @manager.update_branches
                     @manager.update_pull_requests
-                    flexmock(Autoproj).should_receive(:message).with(/Triggering/).once
+
+                    branch_name = 'autoproj/rock-core/drivers-iodrivers_base/pulls/12'
+                    flexmock(@manager.bb).should_receive(:build)
+                                         .with(branch: branch_name).once
                     @manager.trigger_build_if_branch_changed([branch])
                 end
             end

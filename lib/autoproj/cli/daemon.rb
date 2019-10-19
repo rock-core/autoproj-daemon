@@ -3,6 +3,7 @@
 require 'autoproj/cli/inspection_tool'
 require 'autoproj/daemon/github/client'
 require 'autoproj/daemon/github/branch'
+require 'autoproj/daemon/buildbot'
 require 'autoproj/daemon/buildconf_manager'
 require 'autoproj/daemon/pull_request_cache'
 require 'autoproj/daemon/github_watcher'
@@ -17,12 +18,15 @@ module Autoproj
         # same pattern, and registers its subcommand in {MainDaemon} while implementing
         # the functionality in this class
         class Daemon
+            attr_reader :bb
             attr_reader :buildconf_manager
             attr_reader :cache
             attr_reader :client
             attr_reader :watcher
             attr_reader :ws
+
             def initialize(workspace)
+                @bb = Autoproj::Daemon::Buildbot.new(workspace)
                 @cache = Autoproj::Daemon::PullRequestCache.load(workspace)
                 @ws = workspace
                 ws.config.load if File.exist?(ws.config_file_path)
@@ -67,8 +71,9 @@ module Autoproj
             def handle_push_event(push_event, **options)
                 if options[:mainline]
                     Autoproj.message "Push detected on #{push_event.owner}/"\
-                        "#{push_event.name}, branch: #{push_event.branch}, "\
-                        'triggering a mainline build'
+                        "#{push_event.name}, branch: #{push_event.branch}"
+
+                    bb.build
                     restart_and_update
                 else
                     pull_request = options[:pull_request]
@@ -85,8 +90,8 @@ module Autoproj
                     cache.dump
 
                     Autoproj.message "Push detected on #{pull_request.base_owner}/"\
-                        "#{pull_request.base_name}##{pull_request.number}, triggering "\
-                        'a PR build'
+                        "#{pull_request.base_name}##{pull_request.number}"
+                    bb.build(branch: branch_name)
                 end
             end
 
@@ -105,6 +110,7 @@ module Autoproj
                         "on #{buildconf_package.owner}/#{buildconf_package.name}"
 
                     buildconf_manager.commit_and_push_overrides(branch_name, overrides)
+                    bb.build(branch: branch_name)
                     cache.add(pr, overrides)
                 else
                     begin
@@ -250,6 +256,18 @@ module Autoproj
                 ws.config.declare 'daemon_polling_period', 'string',
                                   default: '60',
                                   doc: 'Enter the github polling period'
+
+                ws.config.declare 'daemon_buildbot_host', 'string',
+                                  default: 'localhost',
+                                  doc: 'Enter builbot host/ip'
+
+                ws.config.declare 'daemon_buildbot_port', 'string',
+                                  default: '8010',
+                                  doc: 'Enter buildbot http port'
+
+                ws.config.declare 'daemon_buildbot_scheduler', 'string',
+                                  default: 'build-force',
+                                  doc: 'Enter builbot scheduler name'
             end
 
             # Saves daemon configurations
@@ -266,8 +284,12 @@ module Autoproj
             # @return [void]
             def configure
                 declare_configuration_options
-                ws.config.configure 'daemon_api_key'
-                ws.config.configure 'daemon_polling_period'
+                config = ws.config
+                config.configure 'daemon_api_key'
+                config.configure 'daemon_polling_period'
+                config.configure 'daemon_buildbot_host'
+                config.configure 'daemon_buildbot_port'
+                config.configure 'daemon_buildbot_scheduler'
                 save_configuration
             end
         end

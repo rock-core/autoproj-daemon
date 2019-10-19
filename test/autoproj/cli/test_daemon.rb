@@ -129,8 +129,9 @@ module Autoproj
                                                     created_at: Time.now)
                 end
                 describe 'a push on a mainline branch' do
-                    it 'restarts the daemon and updates the workspace' do
-                        flexmock(cli).should_receive(:restart_and_update).once
+                    it 'triggers build, restarts daemon and updates the workspace' do
+                        flexmock(cli.bb).should_receive(:build).once
+                        flexmock(cli).should_receive(:restart_and_update).once.ordered
                         cli.handle_push_event(@push_event, mainline: true)
                     end
                 end
@@ -174,8 +175,14 @@ module Autoproj
                                           .with(@pull_request).and_return([])
 
                         @buildconf_manager.should_receive(:commit_and_push_overrides).once
+
+                        branch_name = 'autoproj/rock-core/drivers-iodrivers_base/pulls/1'
+                        flexmock(cli.bb).should_receive(:build)
+                                        .with(branch: branch_name).once
+
                         cli.handle_push_event(@push_event, mainline: false,
                                                            pull_request: @pull_request)
+
                         refute cli.cache.changed?(@pull_request, [])
                     end
                 end
@@ -234,6 +241,10 @@ module Autoproj
                             @pull_request,
                             [{ 'package' => { 'remote_branch' => 'something' } }]
                         )
+
+                        branch_name = 'autoproj/rock-core/drivers-iodrivers_base/pulls/1'
+                        flexmock(cli.bb).should_receive(:build)
+                                        .with(branch: branch_name).once
 
                         @buildconf_manager.should_receive(:commit_and_push_overrides).once
                         cli.handle_pull_request_event(@pull_request_event)
@@ -336,6 +347,15 @@ module Autoproj
                         .should_receive(:configure).with('daemon_api_key').once
                     flexmock(ws.config)
                         .should_receive(:configure).with('daemon_polling_period')
+                        .at_least.once
+                    flexmock(ws.config)
+                        .should_receive(:configure).with('daemon_buildbot_host')
+                        .at_least.once
+                    flexmock(ws.config)
+                        .should_receive(:configure).with('daemon_buildbot_port')
+                        .at_least.once
+                    flexmock(ws.config)
+                        .should_receive(:configure).with('daemon_buildbot_scheduler')
                         .at_least.once
                     cli.configure
                 end

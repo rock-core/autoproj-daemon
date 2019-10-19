@@ -29,6 +29,47 @@ module Autoproj
             def daemon_polling_period
                 get('daemon_polling_period', 60)
             end
+
+            # The buildbot host/ip
+            #
+            # @return [String]
+            def daemon_buildbot_host
+                get('daemon_buildbot_host', 'localhost')
+            end
+
+            # Sets buildbot host/ip
+            # @param [String] host Buildbot host/ip
+            # @return [void]
+            def daemon_buildbot_host=(host)
+                set('daemon_buildbot_host', host, true)
+            end
+
+            # Sets buildbot http port
+            # @param [Integer] port Buildbot http port
+            def daemon_buildbot_port=(port)
+                set('daemon_buildbot_port', port, true)
+            end
+
+            # Buildbot http port
+            #
+            # @return [Integer]
+            def daemon_buildbot_port
+                get('daemon_buildbot_port', 8010)
+            end
+
+            # The buildbot force scheduler name
+            #
+            # @return [String]
+            def daemon_buildbot_scheduler
+                get('daemon_buildbot_scheduler', 'build-force')
+            end
+
+            # Sets the buildbot force scheduler name
+            # @param [String] scheduler Buildbot force scheduler name
+            # @return [void]
+            def daemon_buildbot_scheduler=(scheduler)
+                set('daemon_buildbot_scheduler', scheduler, true)
+            end
         end
     end
 end

@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require 'autoproj/daemon/buildbot'
 require 'autoproj/daemon/pull_request_cache'
 require 'autoproj/daemon/package_repository'
 require 'autoproj/daemon/github/client'
@@ -13,7 +14,10 @@ module Autoproj
         # representing open Pull Requests to the actual Pull Requests
         # on each watched repository
         class BuildconfManager
-            # @return [Autoproj::PackageRepository]
+            # @return [Autoproj::Daemon::Buildbot]
+            attr_reader :bb
+
+            # @return [Autoproj::Daemon::PackageRepository]
             attr_reader :buildconf
 
             # @return [Github::Client]
@@ -41,6 +45,7 @@ module Autoproj
             # @param [Autoproj::Daemon::PullRequestCache] cache Pull request cache
             # @param [Autoproj::Workspace] workspace Current workspace
             def initialize(buildconf, client, packages, cache, workspace)
+                @bb = Buildbot.new(workspace)
                 @buildconf = buildconf
                 @client = client
                 @packages = packages
@@ -215,7 +220,7 @@ module Autoproj
             # @param [Github::Branch] branch
             # @return [void]
             def trigger_build(branch)
-                Autoproj.message "Triggering build for #{branch.branch_name} (new)"
+                bb.build(branch: branch.branch_name)
             end
 
             # @param [Array<Github::Branch>] branches
@@ -227,7 +232,7 @@ module Autoproj
                     next unless cache.changed?(pr, overrides)
 
                     cache.add(pr, overrides)
-                    Autoproj.message "Triggering build for #{branch.branch_name} (update)"
+                    bb.build(branch: branch.branch_name)
                 end
             end
 
