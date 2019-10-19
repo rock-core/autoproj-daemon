@@ -239,7 +239,8 @@ module Autoproj
             def update
                 Main.default_report_on_package_failures = :raise
                 Main.start(
-                    ['update', '--no-osdeps', '--no-interactive', ws.root_dir]
+                    ['update', '--no-osdeps', '--no-interactive',
+                     '--force-reset', ws.root_dir]
                 )
                 @update_failed = false
                 true

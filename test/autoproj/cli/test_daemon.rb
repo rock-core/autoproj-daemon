@@ -389,6 +389,7 @@ module Autoproj
                                   .with(['update',
                                          '--no-osdeps',
                                          '--no-interactive',
+                                         '--force-reset',
                                          ws.root_dir]).and_return(true)
                     assert cli.update
                     refute cli.update_failed?
@@ -399,6 +400,7 @@ module Autoproj
                                   .with(['update',
                                          '--no-osdeps',
                                          '--no-interactive',
+                                         '--force-reset',
                                          ws.root_dir]).and_return { raise }
                     refute cli.update
                     assert cli.update_failed?
@@ -409,6 +411,7 @@ module Autoproj
                                   .with(['update',
                                          '--no-osdeps',
                                          '--no-interactive',
+                                         '--force-reset',
                                          ws.root_dir])
                                   .and_return { raise ArgumentError, 'foobar' }
                     refute cli.update
