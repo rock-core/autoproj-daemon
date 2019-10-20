@@ -154,8 +154,7 @@ module Autoproj
                     pull_request = client.pull_requests(
                         cached_pull_request.base_owner,
                         cached_pull_request.base_name,
-                        number: cached_pull_request.number
-                    ).first
+                    ).find { |pr| pr.number == cached_pull_request.number }
                     return unless pull_request
                 end
                 call_push_hooks(push_event, mainline: to_mainline,
