@@ -73,9 +73,11 @@ module Autoproj
                     Autoproj.message "Push detected on #{push_event.owner}/"\
                         "#{push_event.name}, branch: #{push_event.branch}"
 
-                    bb.build
+                    bb.build unless update_failed?
                     restart_and_update
                 else
+                    return if update_failed?
+
                     pull_request = options[:pull_request]
                     return if pull_request.base_owner == buildconf_package.owner &&
                               pull_request.base_name == buildconf_package.name
@@ -101,6 +103,8 @@ module Autoproj
             # @param [Github::PullRequestEvent] pull_request_event
             # @return [void]
             def handle_pull_request_event(pull_request_event)
+                return if update_failed?
+
                 pr = pull_request_event.pull_request
                 return if pr.base_owner == buildconf_package.owner &&
                           pr.base_name == buildconf_package.name # ignore buildconf PR's
@@ -226,7 +230,7 @@ module Autoproj
                 )
 
                 setup_hooks
-                buildconf_manager.synchronize_branches
+                buildconf_manager.synchronize_branches unless update_failed?
                 watcher.watch
             end
 

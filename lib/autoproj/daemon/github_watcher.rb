@@ -149,6 +149,8 @@ module Autoproj
                             pr.head_name == push_event.name &&
                             pr.head_branch == push_event.branch
                     end
+                    return unless cached_pull_request
+
                     pull_request = client.pull_requests(
                         cached_pull_request.base_owner,
                         cached_pull_request.base_name,
