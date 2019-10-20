@@ -373,6 +373,54 @@ module Autoproj
                     @manager.trigger_build_if_branch_changed([branch])
                 end
             end
+
+            describe '#update_cache' do
+                it 'removes pull requests that are no longer tracked' do
+                    one = create_pull_request(
+                        base_owner: 'rock-core',
+                        base_name: 'drivers-iodrivers_base',
+                        number: 12,
+                        base_branch: 'develop',
+                        head_owner: 'g-arjones',
+                        head_name: 'drivers-iodrivers_base',
+                        head_branch: 'add_feature',
+                        head_sha: 'abcdef'
+                    )
+
+                    two = create_pull_request(
+                        base_owner: 'rock-core',
+                        base_name: 'drivers-iodrivers_base',
+                        number: 14,
+                        base_branch: 'develop',
+                        head_owner: 'g-arjones',
+                        head_name: 'drivers-iodrivers_base',
+                        head_branch: 'other_feature',
+                        head_sha: 'ghijkl'
+                    )
+
+                    three = create_pull_request(
+                        base_owner: 'rock-core',
+                        base_name: 'drivers-iodrivers_base',
+                        number: 16,
+                        base_branch: 'develop',
+                        head_owner: 'g-arjones',
+                        head_name: 'drivers-iodrivers_base',
+                        head_branch: 'awesome_feature',
+                        head_sha: 'abcdef'
+                    )
+
+                    @manager.cache.add(one, [])
+                    @manager.cache.add(two, [])
+                    @manager.cache.add(three, [])
+                    @manager.pull_requests << three
+
+                    flexmock(@manager.cache).should_receive(:dump).once
+                    assert_equal 3, @manager.cache.pull_requests.size
+                    @manager.update_cache
+                    assert_equal 1, @manager.cache.pull_requests.size
+                    refute_nil @manager.cache.cached(three)
+                end
+            end
             # rubocop: enable Metrics/BlockLength
         end
     end

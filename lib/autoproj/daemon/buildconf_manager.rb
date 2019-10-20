@@ -237,8 +237,17 @@ module Autoproj
             end
 
             # @return [void]
+            def update_cache
+                cache.pull_requests.delete_if do |cached_pr|
+                    pull_requests.none? do |tracked_pr|
+                        cached_pr.caches_pull_request?(tracked_pr)
+                    end
+                end
+                cache.dump
+            end
+
+            # @return [void]
             def synchronize_branches
-                cache.clear
                 update_pull_requests
                 update_branches
                 delete_stale_branches
@@ -246,7 +255,7 @@ module Autoproj
 
                 created.each { |branch| trigger_build(branch) }
                 trigger_build_if_branch_changed(existing)
-                cache.dump
+                update_cache
             end
         end
     end
