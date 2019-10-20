@@ -73,6 +73,11 @@ module Autoproj
                     Time.parse(@model['updated_at'])
                 end
 
+                # @return [String]
+                def body
+                    @model['body']
+                end
+
                 def ==(other)
                     model == other.model
                 end
