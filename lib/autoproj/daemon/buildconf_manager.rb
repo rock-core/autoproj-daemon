@@ -6,6 +6,7 @@ require 'autoproj/daemon/package_repository'
 require 'autoproj/daemon/github/client'
 require 'autoproj/daemon/github/branch'
 require 'autoproj/daemon/github/pull_request'
+require 'autoproj/daemon/overrides_retriever'
 require 'yaml'
 
 module Autoproj
@@ -184,28 +185,27 @@ module Autoproj
             end
 
             # @param [Github::PullRequest] pull_request
-            # @return [Hash]
+            # @return [Array<Hash>]
             def overrides_for_pull_request(pull_request)
-                # TODO: Extract overrides from PR body.
-                #    This is not as easy as one could have thought
-                #    because the depended upon PR may have dependencies
-                #    of its own. We have to do it recursively. Detecting
-                #    changes in this chain of overrides is even more
-                #    challenging. Or, one could add the entire dependency
-                #    tree in every PR body.
-                packages_affected_by_pull_request(pull_request).map do |pkg|
-                    key = if pkg.package_set?
-                              "pkg_set:#{pkg.vcs[:repository_id]}"
-                          else
-                              pkg.package
-                          end
-                    {
-                        key => {
-                            'github' => "#{pull_request.head_owner}/"\
-                                        "#{pull_request.head_name}",
-                            'remote_branch' => pull_request.head_branch
+                retriever = OverridesRetriever.new(client)
+                all_prs = retriever.retrieve_dependencies(pull_request)
+                all_prs << pull_request
+
+                all_prs.flat_map do |pr|
+                    packages_affected_by_pull_request(pr).map do |pkg|
+                        key = if pkg.package_set?
+                                  "pkg_set:#{pkg.vcs[:repository_id]}"
+                              else
+                                  pkg.package
+                              end
+                        {
+                            key => {
+                                'github' => "#{pr.head_owner}/"\
+                                            "#{pr.head_name}",
+                                'remote_branch' => pr.head_branch
+                            }
                         }
-                    }
+                    end
                 end
             end
 
