@@ -87,7 +87,7 @@ module Autoproj
             # @param [Github::PushEvent] push_event
             # @return [void]
             def call_push_hooks(push_event, **options)
-                @push_hooks.each { |hook| hook.call(push_event, options) }
+                @push_hooks.each { |hook| hook.call(push_event, **options) }
             end
 
             # @param [Github::PullRequestEvent] pull_request_event
