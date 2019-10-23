@@ -68,8 +68,8 @@ module Autoproj
 
             # @param [Github::PushEvent] push_event
             # @return [void]
-            def handle_push_event(push_event, **options)
-                if options[:mainline]
+            def handle_push_event(push_event, mainline: nil, pull_request: nil)
+                if mainline
                     Autoproj.message "Push detected on #{push_event.owner}/"\
                         "#{push_event.name}, branch: #{push_event.branch}"
 
@@ -77,8 +77,6 @@ module Autoproj
                     restart_and_update
                 else
                     return if update_failed?
-
-                    pull_request = options[:pull_request]
                     return if pull_request.base_owner == buildconf_package.owner &&
                               pull_request.base_name == buildconf_package.name
 
