@@ -28,17 +28,10 @@ module Autoproj
 
             # @param [Hash] options
             # @return [Hash]
-            def validate_options(options = {})
-                options[:branch] ||= 'master'
-                options
-            end
-
-            # @param [Hash] options
-            # @return [Hash]
             def body(**options)
-                body = BODY
-                body[:params].merge!(validate_options(options))
-                body
+                BODY.merge(
+                    params: BODY[:params].merge(branch: 'master').merge(**options)
+                )
             end
 
             # @return [URI]
@@ -58,7 +51,7 @@ module Autoproj
                 request = Net::HTTP::Post.new(uri.request_uri, HEADER)
                 request.body = body(options).to_json
 
-                branch = body(options)[:params][:branch]
+                branch = body(**options)[:params][:branch]
                 Autoproj.message "Triggering build on #{branch}"
 
                 response = http.request(request)

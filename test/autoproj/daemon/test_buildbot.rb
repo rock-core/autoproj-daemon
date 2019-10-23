@@ -18,30 +18,8 @@ module Autoproj
                 @bb = Buildbot.new(ws)
             end
 
-            describe '#validate_options' do
-                it 'adds branch parameter if unset' do
-                    options = {
-                        branch: 'master',
-                        foo: 'bar'
-                    }
-
-                    assert_equal options, bb.validate_options(foo: 'bar')
-                    assert_equal Hash[branch: 'master'], bb.validate_options
-                end
-                it 'keeps branch parameter if set' do
-                    options = {
-                        branch: 'feature',
-                        foo: 'bar'
-                    }
-
-                    assert_equal options, bb.validate_options(options)
-                    assert_equal Hash[branch: 'feature'],
-                                 bb.validate_options(branch: 'feature')
-                end
-            end
-
             describe '#body' do
-                it 'returns the json rpc client call' do
+                it 'adds branch parameter if unset' do
                     expected = {
                         method: 'force',
                         jsonrpc: '2.0',
@@ -51,6 +29,17 @@ module Autoproj
                         }
                     }
                     assert_equal expected, bb.body
+                end
+                it 'keeps branch parameter if set' do
+                    expected = {
+                        method: 'force',
+                        jsonrpc: '2.0',
+                        id: 1,
+                        params: {
+                            branch: 'feature'
+                        }
+                    }
+                    assert_equal expected, bb.body(branch: 'feature')
                 end
             end
 
@@ -83,7 +72,9 @@ module Autoproj
                         .new_instances
                         .should_receive('request').and_return(response)
 
-                    assert bb.build
+                    flexmock(bb).should_receive(:body).with(branch: 'feature')
+                                .at_least.once.pass_thru
+                    assert bb.build(branch: 'feature')
                 end
                 it 'returns false if command fails' do
                     ws.config.daemon_buildbot_host = 'bb-master'
