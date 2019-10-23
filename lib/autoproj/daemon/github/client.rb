@@ -24,6 +24,15 @@ module Autoproj
                     end
                 end
 
+                # @return [PullRequest]
+                def pull_request(owner, name, number, options = {})
+                    PullRequest.new(
+                        @client.pull_request("#{owner}/#{name}", number, options).to_hash
+                    )
+                rescue Octokit::NotFound
+                    nil
+                end
+
                 # @return [Array<PushEvent, PullRequestEvent>]
                 def fetch_events(owner)
                     @client.user_events(owner).map do |event|
