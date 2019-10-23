@@ -121,6 +121,50 @@ module Autoproj
                 end
             end
 
+            describe '#buildconf_pull_request' do
+                before do
+                    @buildconf_package = Autoproj::Daemon::PackageRepository.new(
+                            'main configuration',
+                            'rock-core',
+                            'buildconf',
+                            branch: 'master'
+                        )
+
+                    flexmock(cli).should_receive(:buildconf_package)
+                                 .and_return(@buildconf_package)
+                end
+                it 'returns true if the pull request base is the buildconf' do
+                    pull_request = create_pull_request(
+                        base_owner: 'rock-core',
+                        base_name: 'buildconf',
+                        base_branch: 'master',
+                        head_owner: 'g-arjones',
+                        head_name: 'buildconf',
+                        head_branch: 'add_package',
+                        head_sha: 'abcdef',
+                        state: 'open',
+                        number: 1
+                    )
+
+                    assert cli.buildconf_pull_request?(pull_request)
+                end
+                it 'returns false if the pull request base is NOT the buildconf' do
+                    pull_request = create_pull_request(
+                        base_owner: 'rock-core',
+                        base_name: 'drivers-iodrivers_base',
+                        base_branch: 'master',
+                        head_owner: 'rock-core',
+                        head_name: 'drivers-iodrivers_base',
+                        head_branch: 'feature',
+                        head_sha: 'abcdef',
+                        state: 'open',
+                        number: 1
+                    )
+
+                    refute cli.buildconf_pull_request?(pull_request)
+                end
+            end
+
             describe '#handle_push_event' do # rubocop: disable Metrics/BlockLength
                 before do
                     @push_event = create_push_event(owner: 'rock-core',

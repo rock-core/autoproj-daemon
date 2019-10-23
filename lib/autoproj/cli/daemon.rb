@@ -66,6 +66,15 @@ module Autoproj
                 @update_failed
             end
 
+            # Whether an attempt to update the workspace has failed
+            #
+            # @param [Autoproj::Daemon::Github::PullRequest] pull_request
+            # @return [Boolean]
+            def buildconf_pull_request?(pull_request)
+                pull_request.base_owner == buildconf_package.owner &&
+                    pull_request.base_name == buildconf_package.name
+            end
+
             # @param [Github::PushEvent] push_event
             # @return [void]
             def handle_push_event(push_event, mainline: nil, pull_request: nil)
@@ -76,9 +85,7 @@ module Autoproj
                     bb.build unless update_failed?
                     restart_and_update
                 else
-                    return if update_failed?
-                    return if pull_request.base_owner == buildconf_package.owner &&
-                              pull_request.base_name == buildconf_package.name
+                    return if update_failed? || buildconf_pull_request?(pull_request)
 
                     overrides = buildconf_manager.overrides_for_pull_request(pull_request)
                     return unless cache.changed?(pull_request, overrides)
@@ -104,8 +111,7 @@ module Autoproj
                 return if update_failed?
 
                 pr = pull_request_event.pull_request
-                return if pr.base_owner == buildconf_package.owner &&
-                          pr.base_name == buildconf_package.name # ignore buildconf PR's
+                return if buildconf_pull_request?(pr)
 
                 branch_name =
                     Autoproj::Daemon::BuildconfManager.branch_name_by_pull_request(pr)
