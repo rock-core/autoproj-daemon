@@ -38,21 +38,6 @@ module Autoproj
                 @packages.map(&:owner).uniq
             end
 
-            # @param [Array<Github::PushEvent, Github::PullRequestEvent>] events
-            # @return [(String, String)]
-            def event_owner_and_name(event)
-                if event.kind_of? Github::PushEvent
-                    owner = event.owner
-                    name = event.name
-                elsif event.kind_of? Github::PullRequestEvent
-                    owner = event.pull_request.base_owner
-                    name = event.pull_request.base_name
-                else
-                    raise ArgumentError, 'Unexpected event type'
-                end
-                [owner, name]
-            end
-
             # @param [String] owner
             # @param [String] name
             # @param [String] branch
@@ -74,42 +59,29 @@ module Autoproj
                 end
             end
 
+            # @param [Github::PushEvent] event
+            # @return [PullRequestCache::CachedPullRequest, nil]
+            def cached_pull_request_affected_by_push_event(event)
+                cache.pull_requests.find do |pr|
+                    pr.head_owner == event.owner &&
+                        pr.head_name == event.name &&
+                        pr.head_branch == event.branch
+                end
+            end
+
             # @param [Array<Github::PushEvent, Github::PullRequestEvent>] events
             # @return [Array<Github::PushEvent, Github::PullRequestEvent>]
             def filter_events(events)
                 events.select do |event|
-                    if event.kind_of? Github::PushEvent
+                    case event
+                    when Github::PushEvent
                         to_mainline?(event.owner, event.name, event.branch) ||
                             to_pull_request?(event.owner, event.name, event.branch)
-                    elsif event.kind_of? Github::PullRequestEvent
+                    when Github::PullRequestEvent
                         pr = event.pull_request
                         to_mainline?(pr.base_owner, pr.base_name, pr.base_branch)
-                    else
-                        false
                     end
                 end
-            end
-
-            # @param [Array<Github::PushEvent, Github::PullRequestEvent>] events
-            # @return [(Array<Github::PushEvent>, Array<Github::PullRequestEvent>)]
-            def partition_events_by_type(events)
-                push_events = events.select { |event| event.kind_of? Github::PushEvent }
-                pull_request_events = events.select do |event|
-                    event.kind_of? Github::PullRequestEvent
-                end
-                [push_events, pull_request_events]
-            end
-
-            # @param [Array<Github::PushEvent, Github::PullRequestEvent>] events
-            # @return [Hash]
-            def partition_events_by_repo_name(events)
-                partitioned = {}
-                events.each do |event|
-                    _, name = event_owner_and_name(event)
-                    partitioned[name] ||= []
-                    partitioned[name] << event
-                end
-                partitioned
             end
 
             # @param [Github::PushEvent] push_event
@@ -126,7 +98,7 @@ module Autoproj
 
             # @param [Github::PushEvent] push_event
             # @return [PackageRepository, nil]
-            def package_by_push_event(push_event)
+            def package_affected_by_push_event(push_event)
                 packages.find do |pkg|
                     pkg.owner == push_event.owner &&
                         pkg.name == push_event.name &&
@@ -141,21 +113,18 @@ module Autoproj
                     push_event.owner, push_event.name, push_event.branch
                 )
                 if to_mainline
-                    package = package_by_push_event(push_event)
+                    package = package_affected_by_push_event(push_event)
                     return if package.head_sha == push_event.head_sha
                 else
-                    cached_pull_request = cache.pull_requests.find do |pr|
-                        pr.head_owner == push_event.owner &&
-                            pr.head_name == push_event.name &&
-                            pr.head_branch == push_event.branch
-                    end
-                    return unless cached_pull_request
+                    cached_pull_request =
+                        cached_pull_request_affected_by_push_event(push_event)
 
-                    pull_request = client.pull_requests(
+                    pull_request = client.pull_request(
                         cached_pull_request.base_owner,
                         cached_pull_request.base_name,
-                    ).find { |pr| pr.number == cached_pull_request.number }
-                    return unless pull_request
+                        cached_pull_request.number
+                    )
+                    return unless pull_request&.open?
                 end
                 call_push_hooks(push_event, mainline: to_mainline,
                                             pull_request: pull_request)
@@ -165,23 +134,40 @@ module Autoproj
             # @return [void]
             def handle_owner_events(events)
                 events = filter_events(events)
-                events = partition_events_by_repo_name(events)
+                push_events, pull_request_events =
+                    events.partition { |event| event.kind_of? Github::PushEvent }
+
+                handle_push_events(push_events) unless push_events.empty?
+                return if pull_request_events.empty?
+
+                handle_pull_request_events(pull_request_events)
+            end
+
+            # @param [Array<Github::PushEvent>]
+            # @return [void]
+            def handle_push_events(events)
+                events = events.group_by(&:name)
                 events.each_value do |repo_events|
-                    push_events, pull_request_events = partition_events_by_type(
-                        repo_events
-                    )
+                    repo_events = repo_events.group_by(&:branch)
+                    repo_events.each_value do |branch_events|
+                        latest_event = branch_events.max_by(&:created_at)
+                        dispatch_push_event(latest_event)
+                    end
+                end
+            end
 
-                    last_push_event = push_events.max_by(&:created_at)
-                    last_pull_request_event =
-                        pull_request_events.max_by(&:created_at)
+            # @param [Array<Github::PullRequestEvent>]
+            # @return [void]
+            def handle_pull_request_events(events)
+                events = events.group_by { |event| event.pull_request.base_name }
+                events.each_value do |repo_events|
+                    repo_events =
+                        repo_events.group_by { |event| event.pull_request.number }
 
-                    dispatch_push_event(last_push_event) if last_push_event
-                    next unless last_pull_request_event
-
-                    pr = last_pull_request_event.pull_request
-                    next if !pr.open? && !cache.cached(pr)
-
-                    call_pull_request_hooks(last_pull_request_event)
+                    repo_events.each_value do |pull_request_events|
+                        latest_event = pull_request_events.max_by(&:created_at)
+                        call_pull_request_hooks(latest_event)
+                    end
                 end
             end
 
