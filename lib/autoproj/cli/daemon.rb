@@ -203,7 +203,8 @@ module Autoproj
                     name,
                     vcs,
                     buildconf: true,
-                    local_dir: ws.config_dir
+                    local_dir: ws.config_dir,
+                    ws: ws
                 )
             end
 

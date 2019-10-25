@@ -23,6 +23,9 @@ module Autoproj
             # @return [String]
             attr_reader :local_dir
 
+            # @return [Autoproj::Workspace]
+            attr_reader :ws
+
             def initialize(package, owner, name, vcs, options = {})
                 @package = package
                 @name = name
@@ -31,6 +34,7 @@ module Autoproj
                 @package_set = options[:package_set]
                 @buildconf = options[:buildconf]
                 @local_dir = options[:local_dir]
+                @ws = options[:ws]
             end
 
             # @return [Boolean]
@@ -55,9 +59,10 @@ module Autoproj
                 pkg.importer.current_remote_commit(pkg, only_local: true)
             end
 
-            # @return [Autoproj::FakePackage]
+            # @return [Autobuild::Package]
             def autobuild
-                return Autobuild::Package[package] if Autobuild::Package[package]
+                pkg = ws.manifest.find_autobuild_package(package)
+                return pkg if pkg
 
                 vcs_definition = Autoproj::VCSDefinition.from_raw(vcs)
                 Ops::Tools.create_autobuild_package(vcs_definition, package, local_dir)
