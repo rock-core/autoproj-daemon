@@ -55,7 +55,7 @@ module Autoproj
             # @return [String]
             def head_sha
                 pkg = autobuild
-                pkg.importdir ||= local_dir # TODO: What if importdir != srcdir?
+                pkg.importdir ||= local_dir
                 pkg.importer.current_remote_commit(pkg, only_local: true)
             end
 

@@ -180,7 +180,7 @@ module Autoproj
                         name,
                         vcs,
                         package_set: package_set,
-                        local_dir: package_set ? pkg[:raw_local_dir] : pkg[:srcdir]
+                        local_dir: package_set ? pkg[:raw_local_dir] : (pkg[:importdir] || pkg[:srcdir])
                     )
                 end.compact
             end
