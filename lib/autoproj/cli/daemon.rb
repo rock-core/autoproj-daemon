@@ -169,11 +169,12 @@ module Autoproj
 
                 @packages = resolve_packages.map do |pkg|
                     vcs = pkg[:vcs]
-                    pkg = pkg.to_h
                     next unless (match = parse_repo_url_from_vcs(vcs))
 
                     owner, name = match
-                    package_set = pkg[:package_set] ? true : false
+                    package_set = pkg.kind_of? Autoproj::InstallationManifest::PackageSet
+
+                    pkg = pkg.to_h
                     Autoproj::Daemon::PackageRepository.new(
                         pkg[:name] || pkg[:package_set],
                         owner,
