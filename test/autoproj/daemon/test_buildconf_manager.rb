@@ -254,17 +254,20 @@ module Autoproj
                                 { branch: 'master' }, pull_requests: [pr])
 
                     overrides = []
-                    overrides << {
-                        'drivers/iodrivers_base' => {
-                            'github' => 'g-arjones/iodrivers_base_fork',
-                            'remote_branch' => 'other_feature'
-                        }
-                    }
 
                     @cache.add(pr, overrides)
                     @manager.update_branches
                     @manager.update_pull_requests
+
                     branch_name = 'autoproj/rock-core/drivers-iodrivers_base/pulls/12'
+                    expected_overrides = [{
+                        'drivers/iodrivers_base' => {
+                            'remote_branch' => 'refs/pull/12/head'
+                        }
+                    }]
+
+                    flexmock(@manager).should_receive(:commit_and_push_overrides)
+                                      .with(branch_name, expected_overrides).once
                     flexmock(@manager.bb).should_receive(:build)
                                          .with(branch: branch_name).once
 
@@ -296,8 +299,7 @@ module Autoproj
                     overrides = []
                     overrides << {
                         'drivers/iodrivers_base' => {
-                            'github' => 'g-arjones/iodrivers_base_fork',
-                            'remote_branch' => 'add_feature'
+                            'remote_branch' => 'refs/pull/12/head'
                         }
                     }
 
@@ -317,6 +319,8 @@ module Autoproj
                     branch_name = 'autoproj/rock-core/drivers-iodrivers_base/pulls/12'
                     flexmock(@manager.bb).should_receive(:build)
                                          .with(branch: branch_name).once
+                    flexmock(@manager).should_receive(:commit_and_push_overrides)
+                                      .with(branch_name, overrides).once
 
                     @manager.trigger_build_if_branch_changed([branch])
                 end
@@ -346,8 +350,7 @@ module Autoproj
                     overrides = []
                     overrides << {
                         'drivers/iodrivers_base' => {
-                            'github' => 'g-arjones/iodrivers_base_fork',
-                            'remote_branch' => 'add_feature'
+                            'remote_branch' => 'refs/pull/12/head'
                         }
                     }
 
@@ -368,6 +371,9 @@ module Autoproj
                     branch_name = 'autoproj/rock-core/drivers-iodrivers_base/pulls/12'
                     flexmock(@manager.bb).should_receive(:build)
                                          .with(branch: branch_name).once
+                    flexmock(@manager).should_receive(:commit_and_push_overrides)
+                                      .with(branch_name, overrides).once
+
                     @manager.trigger_build_if_branch_changed([branch])
                 end
             end

@@ -229,6 +229,7 @@ module Autoproj
                     overrides = overrides_for_pull_request(pr)
                     next unless cache.changed?(pr, overrides)
 
+                    commit_and_push_overrides(branch.branch_name, overrides)
                     cache.add(pr, overrides)
                     bb.build(branch: branch.branch_name)
                 end
