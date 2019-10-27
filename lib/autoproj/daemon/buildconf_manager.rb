@@ -200,9 +200,7 @@ module Autoproj
                               end
                         {
                             key => {
-                                'github' => "#{pr.head_owner}/"\
-                                            "#{pr.head_name}",
-                                'remote_branch' => pr.head_branch
+                                'remote_branch' => "refs/pull/#{pr.number}/head"
                             }
                         }
                     end

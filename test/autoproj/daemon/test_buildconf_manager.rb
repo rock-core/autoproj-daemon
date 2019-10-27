@@ -215,14 +215,12 @@ module Autoproj
                     overrides = []
                     overrides << {
                         'drivers/iodrivers_base' => {
-                            'github' => 'g-arjones/drivers-iodrivers_base_fork',
-                            'remote_branch' => 'add_feature'
+                            'remote_branch' => 'refs/pull/12/head'
                         }
                     }
                     overrides << {
                         'iodrivers_base' => {
-                            'github' => 'g-arjones/drivers-iodrivers_base_fork',
-                            'remote_branch' => 'add_feature'
+                            'remote_branch' => 'refs/pull/12/head'
                         }
                     }
                     @cache.add(pr, overrides)

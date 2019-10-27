@@ -72,6 +72,12 @@ module Autoproj
                     assert_equal 'vscode', pull_request.head_name
                 end
 
+                it 'returns nil if head repo is nil' do
+                    @model = @pull_request.instance_variable_get(:@model)
+                    @model['head']['repo'] = nil
+                    assert_nil pull_request.head_name
+                end
+
                 it 'returns the pull request body' do
                     assert_equal 'Faced the same issue #80837 '\
                         "and didn't see much activity.\r\nThis PR fixes #80837 ",

@@ -65,6 +65,8 @@ module Autoproj
 
                 # @return [String]
                 def head_name
+                    return nil unless @model['head']['repo']
+
                     @model['head']['repo']['name']
                 end
 
