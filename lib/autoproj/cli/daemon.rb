@@ -31,6 +31,7 @@ module Autoproj
                 @ws = workspace
                 ws.config.load if File.exist?(ws.config_file_path)
                 @update_failed = false
+                ws.load_config
             end
 
             # Loads all package definitions from the installation manifest
@@ -224,7 +225,6 @@ module Autoproj
             def buildconf_package
                 return @buildconf_package if @buildconf_package
 
-                ws.load_config
                 vcs = ws.manifest.main_package_set.vcs.to_hash
                 unless (match = parse_repo_url_from_vcs(vcs))
                     raise Autoproj::ConfigError,
