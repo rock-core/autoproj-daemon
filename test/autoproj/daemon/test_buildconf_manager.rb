@@ -227,7 +227,7 @@ module Autoproj
 
                     @manager.update_branches
                     @manager.update_pull_requests
-                    flexmock(Autoproj).should_receive(:message).with(/Triggering/).never
+                    flexmock(@manager.bb).should_receive(:build).never
                     @manager.trigger_build_if_branch_changed([branch])
                 end
                 it 'triggers if overrides changed' do
