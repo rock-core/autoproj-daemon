@@ -128,6 +128,19 @@ module Autoproj
                                           remote_branch: 'develop')
                     assert_equal 0, cli.packages.size
                 end
+                it 'ignores packages with frozen commits' do
+                    define_package('foo', type: 'git',
+                                          url: 'https://github.com/owner/foo',
+                                          branch: 'master',
+                                          tag: '1.0')
+
+                    define_package('bar', type: 'git',
+                                          url: 'https://github.com/owner/bar',
+                                          branch: 'master',
+                                          commit: 'abcdef')
+
+                    assert_equal 0, cli.packages.size
+                end
                 it 'properly handles package sets' do
                     define_package_set(
                         'rock', type: 'git',

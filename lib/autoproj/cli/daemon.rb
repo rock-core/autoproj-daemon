@@ -198,6 +198,7 @@ module Autoproj
                 @packages = resolve_packages.map do |pkg|
                     vcs = pkg[:vcs]
                     next unless (match = parse_repo_url_from_vcs(vcs))
+                    next if vcs[:commit] || vcs[:tag]
 
                     owner, name = match
                     package_set = pkg.kind_of? Autoproj::InstallationManifest::PackageSet
