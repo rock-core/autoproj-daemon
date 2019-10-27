@@ -77,71 +77,98 @@ module Autoproj
 
             # @param [Github::PushEvent] push_event
             # @return [void]
+            def handle_mainline_push(push_event)
+                Autoproj.message "Push detected on #{push_event.owner}/"\
+                    "#{push_event.name}, branch: #{push_event.branch}"
+
+                bb.build unless update_failed?
+                restart_and_update
+            end
+
+            # @param [Github::PullRequest] pull_request
+            # @return [void]
+            def handle_pull_request_push(pull_request)
+                overrides = buildconf_manager.overrides_for_pull_request(pull_request)
+                return unless cache.changed?(pull_request, overrides)
+
+                branch_name =
+                    Autoproj::Daemon::BuildconfManager.branch_name_by_pull_request(
+                        pull_request
+                    )
+
+                buildconf_manager.commit_and_push_overrides(branch_name, overrides)
+                cache.add(pull_request, overrides)
+
+                Autoproj.message "Push detected on #{pull_request.base_owner}/"\
+                    "#{pull_request.base_name}##{pull_request.number}"
+
+                bb.build(branch: branch_name)
+                cache.dump
+            end
+
+            # @param [Github::PushEvent] push_event
+            # @return [void]
             def handle_push_event(push_event, mainline: nil, pull_request: nil)
-                if mainline
-                    Autoproj.message "Push detected on #{push_event.owner}/"\
-                        "#{push_event.name}, branch: #{push_event.branch}"
+                return handle_mainline_push(push_event) if mainline
+                return if update_failed? || buildconf_pull_request?(pull_request)
 
-                    bb.build unless update_failed?
-                    restart_and_update
-                else
-                    return if update_failed? || buildconf_pull_request?(pull_request)
+                handle_pull_request_push(pull_request)
+            end
 
-                    overrides = buildconf_manager.overrides_for_pull_request(pull_request)
-                    return unless cache.changed?(pull_request, overrides)
+            # @param [Github::PullRequest] pull_request
+            # @return [void]
+            def handle_pull_request_opened(pull_request)
+                branch_name =
+                    Autoproj::Daemon::BuildconfManager.branch_name_by_pull_request(
+                        pull_request
+                    )
 
-                    branch_name =
-                        Autoproj::Daemon::BuildconfManager.branch_name_by_pull_request(
-                            pull_request
-                        )
+                overrides = buildconf_manager.overrides_for_pull_request(pull_request)
+                return unless cache.changed?(pull_request, overrides)
 
-                    buildconf_manager.commit_and_push_overrides(branch_name, overrides)
-                    cache.add(pull_request, overrides)
-                    cache.dump
+                Autoproj.message "Creating branch #{branch_name} "\
+                    "on #{buildconf_package.owner}/#{buildconf_package.name}"
 
-                    Autoproj.message "Push detected on #{pull_request.base_owner}/"\
-                        "#{pull_request.base_name}##{pull_request.number}"
-                    bb.build(branch: branch_name)
+                buildconf_manager.commit_and_push_overrides(branch_name, overrides)
+                bb.build(branch: branch_name)
+
+                cache.add(pull_request, overrides)
+                cache.dump
+            end
+
+            # @param [Github::PullRequest] pull_request
+            # @return [void]
+            def handle_pull_request_closed(pull_request)
+                branch_name =
+                    Autoproj::Daemon::BuildconfManager.branch_name_by_pull_request(
+                        pull_request
+                    )
+                begin
+                    Autoproj.message "Deleting stale branch #{branch_name} "\
+                        "from #{buildconf_package.owner}/#{buildconf_package.name}"
+
+                    client.delete_branch_by_name(buildconf_package.owner,
+                                                 buildconf_package.name, branch_name)
+                    cache.delete(pull_request)
+
+                # rubocop: disable Lint/HandleExceptions
+                rescue Octokit::UnprocessableEntity
                 end
+                # rubocop: enable Lint/HandleExceptions
+
+                cache.dump
             end
 
             # @param [Github::PullRequestEvent] pull_request_event
             # @return [void]
             def handle_pull_request_event(pull_request_event)
                 return if update_failed?
+                return if buildconf_pull_request?(pull_request_event.pull_request)
 
                 pr = pull_request_event.pull_request
-                return if buildconf_pull_request?(pr)
+                return handle_pull_request_opened(pr) if pr.open?
 
-                branch_name =
-                    Autoproj::Daemon::BuildconfManager.branch_name_by_pull_request(pr)
-
-                if pr.open?
-                    overrides = buildconf_manager.overrides_for_pull_request(pr)
-                    return unless cache.changed?(pr, overrides)
-
-                    Autoproj.message "Creating branch #{branch_name} "\
-                        "on #{buildconf_package.owner}/#{buildconf_package.name}"
-
-                    buildconf_manager.commit_and_push_overrides(branch_name, overrides)
-                    bb.build(branch: branch_name)
-                    cache.add(pr, overrides)
-                else
-                    begin
-                        Autoproj.message "Deleting stale branch #{branch_name} "\
-                            "from #{buildconf_package.owner}/#{buildconf_package.name}"
-
-                        client.delete_branch_by_name(buildconf_package.owner,
-                                                     buildconf_package.name, branch_name)
-                        cache.delete(pr)
-
-                    # rubocop: disable Lint/HandleExceptions
-                    rescue Octokit::UnprocessableEntity
-                        # Swallow, the branch may have been deleted by someone else
-                    end
-                    # rubocop: enable Lint/HandleExceptions
-                end
-                cache.dump
+                handle_pull_request_closed(pr)
             end
 
             # @return [void]
@@ -175,13 +202,19 @@ module Autoproj
                     package_set = pkg.kind_of? Autoproj::InstallationManifest::PackageSet
 
                     pkg = pkg.to_h
+                    local_dir = if package_set
+                                    pkg[:raw_local_dir]
+                                else
+                                    pkg[:importdir] || pkg[:srcdir]
+                                end
+
                     Autoproj::Daemon::PackageRepository.new(
                         pkg[:name] || pkg[:package_set],
                         owner,
                         name,
                         vcs,
                         package_set: package_set,
-                        local_dir: package_set ? pkg[:raw_local_dir] : (pkg[:importdir] || pkg[:srcdir]),
+                        local_dir: local_dir,
                         ws: ws
                     )
                 end.compact

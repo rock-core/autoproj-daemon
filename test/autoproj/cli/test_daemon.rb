@@ -121,14 +121,51 @@ module Autoproj
                 end
             end
 
-            describe '#buildconf_pull_request' do
+            describe '#packages' do # rubocop: disable Metrics/BlockLength
+                it 'ignores packages that do not have a valid vcs' do
+                    define_package('foo', type: 'git',
+                                          url: 'https://gitlab.org/owner/foo',
+                                          remote_branch: 'develop')
+                    assert_equal 0, cli.packages.size
+                end
+                it 'properly handles package sets' do
+                    define_package_set(
+                        'rock', type: 'git',
+                                url: 'https://github.com/rock-core/package_set',
+                                remote_branch: 'develop'
+                    )
+
+                    pkg_set = cli.packages.first
+                    assert_equal '/.autoproj/remotes/rock', pkg_set.local_dir
+                    assert_equal 'rock-core', pkg_set.owner
+                    assert_equal 'package_set', pkg_set.name
+                    assert_equal 'rock', pkg_set.package
+                    assert pkg_set.package_set?
+                end
+                it 'properly handles packages' do
+                    define_package(
+                        'tools/roby', type: 'git',
+                                      url: 'https://github.com/rock-core/tools-roby',
+                                      master: 'master'
+                    )
+
+                    pkg = cli.packages.first
+                    assert_equal '/src', pkg.local_dir
+                    assert_equal 'rock-core', pkg.owner
+                    assert_equal 'tools-roby', pkg.name
+                    assert_equal 'tools/roby', pkg.package
+                    refute pkg.package_set?
+                end
+            end
+
+            describe '#buildconf_pull_request' do # rubocop: disable Metrics/BlockLength
                 before do
                     @buildconf_package = Autoproj::Daemon::PackageRepository.new(
-                            'main configuration',
-                            'rock-core',
-                            'buildconf',
-                            branch: 'master'
-                        )
+                        'main configuration',
+                        'rock-core',
+                        'buildconf',
+                        branch: 'master'
+                    )
 
                     flexmock(cli).should_receive(:buildconf_package)
                                  .and_return(@buildconf_package)
