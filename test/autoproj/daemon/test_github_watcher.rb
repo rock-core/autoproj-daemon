@@ -601,6 +601,35 @@ module Autoproj
 
                     watcher.handle_pull_request_events(@events)
                 end
+                it 'handles close events of cached PRs' do
+                    @events << create_pull_request_event(
+                        base_owner: 'rock-core',
+                        base_name: 'drivers-gps_ublox',
+                        base_branch: 'master',
+                        number: 1,
+                        state: 'closed',
+                        created_at: Time.utc(2019, 'sep', 22, 23, 53, 35)
+                    )
+                    @cache.add(@events[0].pull_request, [])
+                    flexmock(watcher).should_receive(:call_pull_request_hooks)
+                                     .with(@events[0]).once
+
+                    watcher.handle_pull_request_events(@events)
+                end
+                it 'ignores close events of unknown PRs' do
+                    @events << create_pull_request_event(
+                        base_owner: 'rock-core',
+                        base_name: 'drivers-gps_ublox',
+                        base_branch: 'master',
+                        number: 1,
+                        state: 'closed',
+                        created_at: Time.utc(2019, 'sep', 22, 23, 53, 35)
+                    )
+                    flexmock(watcher).should_receive(:call_pull_request_hooks)
+                                     .with(@events[0]).never
+
+                    watcher.handle_pull_request_events(@events)
+                end
                 # rubocop: enable Metrics/BlockLength
             end
         end

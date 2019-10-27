@@ -166,6 +166,9 @@ module Autoproj
 
                     repo_events.each_value do |pull_request_events|
                         latest_event = pull_request_events.max_by(&:created_at)
+                        pull_request = latest_event.pull_request
+                        next if !pull_request.open? && !cache.cached(pull_request)
+
                         call_pull_request_hooks(latest_event)
                     end
                 end
