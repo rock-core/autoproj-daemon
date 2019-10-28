@@ -31,7 +31,7 @@ module Autoproj
 
             def define_package(name, vcs)
                 pkg = Autoproj::InstallationManifest::Package.new(
-                    name, 'Autobuild::CMake', vcs, '/src', '/prefix', '/build', []
+                    name, 'Autobuild::CMake', vcs, '/src', '/src', '/prefix', '/build', []
                 )
 
                 @manifest.add_package(pkg)
