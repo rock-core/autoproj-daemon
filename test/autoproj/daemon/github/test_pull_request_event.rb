@@ -20,7 +20,7 @@ module Autoproj
                 end
 
                 it 'returns the state' do
-                    assert true, pull_request_event.pull_request.open?.class
+                    assert pull_request_event.pull_request.open?
                 end
 
                 it 'returns the PR number' do

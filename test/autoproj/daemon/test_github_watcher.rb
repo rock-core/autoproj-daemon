@@ -459,57 +459,6 @@ module Autoproj
 
                     watcher.handle_owner_events(@events)
                 end
-                it 'does not call push handler if there are no events to be handled' do
-                    @events << create_pull_request_event(
-                        base_owner: 'rock-core',
-                        base_name: 'drivers-gps_ublox',
-                        base_branch: 'master',
-                        state: 'open',
-                        created_at: Time.utc(2019, 'sep', 22, 23, 53, 35)
-                    )
-                    @events << create_pull_request_event(
-                        base_owner: 'rock-core',
-                        base_name: 'drivers-gps_ublox',
-                        base_branch: 'master',
-                        state: 'open',
-                        created_at: Time.utc(2019, 'sep', 22, 23, 53, 40)
-                    )
-
-                    add_package('drivers/gps_ublox', 'rock-core', 'drivers-gps_ublox')
-                    @events[0..1].each { |event| @cache.add(event.pull_request, []) }
-
-                    flexmock(watcher).should_receive(:handle_push_events).with(any).never
-                    flexmock(watcher)
-                        .should_receive(:handle_pull_request_events)
-                        .with(@events[0..1]).once
-
-                    watcher.handle_owner_events(@events)
-                end
-                it 'does not call PR handler if there are no PR events' do
-                    @events << create_push_event(
-                        owner: 'rock-core',
-                        name: 'drivers-gps_ublox',
-                        branch: 'master',
-                        created_at: Time.utc(2019, 'sep', 22, 23, 53, 35)
-                    )
-                    @events << create_push_event(
-                        owner: 'rock-core',
-                        name: 'drivers-gps_ublox',
-                        branch: 'master',
-                        created_at: Time.utc(2019, 'sep', 22, 23, 53, 40)
-                    )
-
-                    add_package('drivers/gps_ublox', 'rock-core', 'drivers-gps_ublox')
-                    flexmock(watcher)
-                        .should_receive(:handle_push_events)
-                        .with(@events[0..1]).once
-
-                    flexmock(watcher)
-                        .should_receive(:handle_pull_request_events)
-                        .with(any).never
-
-                    watcher.handle_owner_events(@events)
-                end
                 # rubocop: enable Metrics/BlockLength
             end
 

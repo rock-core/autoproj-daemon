@@ -137,9 +137,7 @@ module Autoproj
                 push_events, pull_request_events =
                     events.partition { |event| event.kind_of? Github::PushEvent }
 
-                handle_push_events(push_events) unless push_events.empty?
-                return if pull_request_events.empty?
-
+                handle_push_events(push_events)
                 handle_pull_request_events(pull_request_events)
             end
 

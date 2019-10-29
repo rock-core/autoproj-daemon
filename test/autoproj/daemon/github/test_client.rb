@@ -48,8 +48,8 @@ module Autoproj
                     @client = Client.new(auto_paginate: false)
                     fetched_events = client.fetch_events('rock-core')
                     assert_equal 2, fetched_events.size
-                    assert fetched_events.first.kind_of? PushEvent
-                    assert fetched_events.last.kind_of? PullRequestEvent
+                    assert_kind_of PushEvent, fetched_events.first
+                    assert_kind_of PullRequestEvent, fetched_events.last
                 end
             end
         end
