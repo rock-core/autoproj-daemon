@@ -209,6 +209,7 @@ module Autoproj
             #
             # @return [void]
             def watch
+                Autoproj.message "Polling events from #{owners.size} users..."
                 loop do
                     owners.each do |owner|
                         handle_owner_events(client.fetch_events(owner))

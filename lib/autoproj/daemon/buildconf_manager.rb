@@ -69,6 +69,9 @@ module Autoproj
                     [pkg.owner, pkg.name, pkg.branch]
                 end
 
+                Autoproj.message "Fetching pull requests from "\
+                    "#{filtered_repos.size} repositories..."
+
                 @pull_requests = filtered_repos.flat_map do |pkg|
                     client.pull_requests(
                         pkg.owner,
@@ -81,6 +84,10 @@ module Autoproj
                     (Time.now.to_date - pr.updated_at.to_date)
                         .round < ws.config.daemon_max_age
                 end
+
+                total_repos = pull_requests.size + pull_requests_stale.size
+                Autoproj.message "Tracking #{total_repos} pull requests (#{pull_requests_stale.size} stale)"
+
                 @pull_requests
             end
 
