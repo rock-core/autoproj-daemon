@@ -529,6 +529,9 @@ module Autoproj
                     flexmock(ws.config)
                         .should_receive(:configure).with('daemon_buildbot_scheduler')
                         .at_least.once
+                    flexmock(ws.config)
+                        .should_receive(:configure).with('daemon_max_age')
+                        .at_least.once
                     cli.configure
                 end
             end

@@ -7,6 +7,7 @@ require 'autoproj/daemon/github/client'
 require 'autoproj/daemon/github/branch'
 require 'autoproj/daemon/github/pull_request'
 require 'autoproj/daemon/overrides_retriever'
+require 'date'
 require 'yaml'
 
 module Autoproj
@@ -36,6 +37,9 @@ module Autoproj
             # @return [Array<Github::PullRequest>]
             attr_reader :pull_requests
 
+            # @return [Array<Github::PullRequest>]
+            attr_reader :pull_requests_stale
+
             # @return [Autoproj::Workspace]
             attr_reader :ws
 
@@ -51,6 +55,7 @@ module Autoproj
                 @client = client
                 @packages = packages
                 @pull_requests = []
+                @pull_requests_stale = []
                 @branches = []
                 @ws = workspace
                 @main = @buildconf.autobuild
@@ -72,6 +77,11 @@ module Autoproj
                         state: 'open'
                     )
                 end
+                @pull_requests, @pull_requests_stale = @pull_requests.partition do |pr|
+                    (Time.now.to_date - pr.updated_at.to_date)
+                        .round < ws.config.daemon_max_age
+                end
+                @pull_requests
             end
 
             BRANCH_TO_PR_RX =
@@ -238,7 +248,7 @@ module Autoproj
             # @return [void]
             def update_cache
                 cache.pull_requests.delete_if do |cached_pr|
-                    pull_requests.none? do |tracked_pr|
+                    (pull_requests + pull_requests_stale).none? do |tracked_pr|
                         cached_pr.caches_pull_request?(tracked_pr)
                     end
                 end

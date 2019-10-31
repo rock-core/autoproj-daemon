@@ -37,7 +37,7 @@ module Autoproj
                 ).once.and_return(options[:pull_requests] || [])
             end
 
-            describe '#update_pull_requests' do
+            describe '#update_pull_requests' do # rubocop: disable Metrics/BlockLength
                 it 'does not poll same repository twice' do
                     add_package('drivers/iodrivers_base2', 'rock-core',
                                 'drivers-iodrivers_base', {}, no_expect: true)
@@ -67,6 +67,23 @@ module Autoproj
 
                     assert_equal [pr], @manager.update_pull_requests
                     assert_equal [pr], @manager.pull_requests
+                end
+
+                it 'partitions stale pull requests' do
+                    pr = create_pull_request(base_owner: 'rock-core',
+                                             base_name: 'drivers-gps_base',
+                                             number: 1,
+                                             updated_at: Time.new(1990, 1, 1),
+                                             base_branch: 'devel',
+                                             head_sha: 'abcdef')
+
+                    add_package('drivers/gps_base', 'rock-core',
+                                'drivers-gps_base',
+                                { branch: 'devel' }, pull_requests: [pr])
+
+                    assert_equal [], @manager.update_pull_requests
+                    assert_equal [], @manager.pull_requests
+                    assert_equal [pr], @manager.pull_requests_stale
                 end
             end
             describe '#update_branches' do
@@ -423,6 +440,27 @@ module Autoproj
                     @manager.update_cache
                     assert_equal 1, @manager.cache.pull_requests.size
                     refute_nil @manager.cache.cached(three)
+                end
+                it 'keeps stale pull requests in the cache' do
+                    pr = create_pull_request(
+                        base_owner: 'rock-core',
+                        base_name: 'drivers-iodrivers_base',
+                        number: 12,
+                        base_branch: 'develop',
+                        head_owner: 'g-arjones',
+                        head_name: 'drivers-iodrivers_base',
+                        head_branch: 'add_feature',
+                        updated_at: Time.new(1990, 1, 1),
+                        head_sha: 'abcdef'
+                    )
+
+                    @manager.cache.add(pr, [])
+                    @manager.pull_requests_stale << pr
+
+                    flexmock(@manager.cache).should_receive(:dump).once
+                    @manager.update_cache
+                    assert_equal 1, @manager.cache.pull_requests.size
+                    refute_nil @manager.cache.cached(pr)
                 end
             end
             # rubocop: enable Metrics/BlockLength

@@ -70,6 +70,20 @@ module Autoproj
             def daemon_buildbot_scheduler=(scheduler)
                 set('daemon_buildbot_scheduler', scheduler, true)
             end
+
+            # Longest period to consider PRs and events (in days)
+            #
+            # @return [Integer]
+            def daemon_max_age
+                get('daemon_max_age', 120)
+            end
+
+            # Sets events and PR max age
+            # @param [Integer] max_age Period, in days
+            # @return [void]
+            def daemon_max_age=(max_age)
+                set('daemon_max_age', max_age, true)
+            end
         end
     end
 end

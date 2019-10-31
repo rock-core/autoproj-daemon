@@ -321,6 +321,10 @@ module Autoproj
                 ws.config.declare 'daemon_buildbot_scheduler', 'string',
                                   default: 'build-force',
                                   doc: 'Enter builbot scheduler name'
+
+                ws.config.declare 'daemon_max_age', 'string',
+                                  default: '120',
+                                  doc: 'Enter events and pull requests max age'
             end
 
             # Saves daemon configurations
@@ -329,6 +333,8 @@ module Autoproj
             def save_configuration
                 ws.config.daemon_polling_period =
                     ws.config.daemon_polling_period.to_i
+                ws.config.daemon_max_age =
+                    ws.config.daemon_max_age.to_i
                 ws.config.save
             end
 
@@ -343,6 +349,7 @@ module Autoproj
                 config.configure 'daemon_buildbot_host'
                 config.configure 'daemon_buildbot_port'
                 config.configure 'daemon_buildbot_scheduler'
+                config.configure 'daemon_max_age'
                 save_configuration
             end
         end

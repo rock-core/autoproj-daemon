@@ -64,5 +64,16 @@ module Autoproj
                 assert_equal 'build-force', @config.daemon_buildbot_scheduler
             end
         end
+
+        describe '#daemon_max_age' do
+            it 'sets events and prs max age' do
+                @config.daemon_max_age = 90
+                assert_equal 90, @config.daemon_max_age
+            end
+
+            it 'returns 120 if events and prs max age not set' do
+                assert_equal 120, @config.daemon_max_age
+            end
+        end
     end
 end

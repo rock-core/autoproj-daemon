@@ -5,6 +5,7 @@ require 'autoproj/daemon/github/client'
 require 'autoproj/daemon/package_repository'
 require 'autoproj/daemon/github/push_event'
 require 'autoproj/daemon/github/pull_request_event'
+require 'date'
 
 module Autoproj
     module Daemon
@@ -69,10 +70,17 @@ module Autoproj
                 end
             end
 
+            # @param [Github::PushEvent, Github::PullRequestEvent] event
+            # @return [Boolean]
+            def stale?(event)
+                (Time.now.to_date - event.created_at.to_date)
+                    .round >= ws.config.daemon_max_age
+            end
+
             # @param [Array<Github::PushEvent, Github::PullRequestEvent>] events
             # @return [Array<Github::PushEvent, Github::PullRequestEvent>]
             def filter_events(events)
-                events.select do |event|
+                events = events.select do |event|
                     case event
                     when Github::PushEvent
                         to_mainline?(event.owner, event.name, event.branch) ||
@@ -82,6 +90,7 @@ module Autoproj
                         to_mainline?(pr.base_owner, pr.base_name, pr.base_branch)
                     end
                 end
+                events.reject { |event| stale?(event) }
             end
 
             # @param [Github::PushEvent] push_event

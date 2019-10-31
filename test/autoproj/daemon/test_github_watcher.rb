@@ -145,6 +145,18 @@ module Autoproj
                     assert_equal events.first, @events[0]
                     assert_equal events.last, @events[1]
                 end
+                it 'reject events that are too old' do
+                    @events << create_pull_request_event(
+                        base_owner: 'rock-core',
+                        base_name: 'tools-roby',
+                        base_branch: 'master',
+                        created_at: Time.new(1990, 1, 1)
+                    )
+                    add_package('tools/roby', 'rock-core', 'tools-roby')
+                    events = watcher.filter_events(@events)
+
+                    assert_equal 0, events.size
+                end
                 it 'filters relevant pull requests' do
                     add_package('drivers/gps_ublox', 'tidewise', 'drivers-gps_ublox',
                                 'feature')
