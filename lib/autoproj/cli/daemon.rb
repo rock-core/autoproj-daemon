@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require 'autoproj/cli/inspection_tool'
+require 'autoproj/cli/update'
 require 'autoproj/daemon/github/client'
 require 'autoproj/daemon/github/branch'
 require 'autoproj/daemon/buildbot'
@@ -282,10 +282,12 @@ module Autoproj
             #
             # @return [Boolean] whether the update failed or not
             def update
-                Main.default_report_on_package_failures = :raise
-                Main.start(
-                    ['update', '--no-osdeps', '--no-interactive',
-                     '--force-reset', ws.root_dir]
+                ws.config.interactive = false
+                Update.new(ws).run(
+                    [], reset: :force,
+                        packages: true,
+                        config: true,
+                        osdeps: false
                 )
                 @update_failed = false
                 true

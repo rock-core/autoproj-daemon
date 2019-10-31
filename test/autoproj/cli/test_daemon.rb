@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 require 'test_helper'
-require 'autoproj/cli/main'
+require 'autoproj/cli/update'
 require 'autoproj/daemon/package_repository'
 require 'autoproj/daemon/github_watcher'
 require 'octokit'
@@ -479,35 +479,34 @@ module Autoproj
 
             describe '#update' do # rubocop: disable Metrics/BlockLength
                 it 'triggers an autoproj update' do
-                    flexmock(Main).should_receive(:start)
-                                  .with(['update',
-                                         '--no-osdeps',
-                                         '--no-interactive',
-                                         '--force-reset',
-                                         ws.root_dir]).and_return(true)
+                    flexmock(Update)
+                        .new_instances.should_receive(:run)
+                        .with([], osdeps: false,
+                                  packages: true,
+                                  config: true,
+                                  reset: :force)
                     assert cli.update
                     refute cli.update_failed?
                 end
 
                 it 'handles a failed update' do
-                    flexmock(Main).should_receive(:start)
-                                  .with(['update',
-                                         '--no-osdeps',
-                                         '--no-interactive',
-                                         '--force-reset',
-                                         ws.root_dir]).and_return { raise }
+                    flexmock(Update)
+                        .new_instances.should_receive(:run)
+                        .with([], osdeps: false,
+                                  packages: true,
+                                  config: true,
+                                  reset: :force).and_raise
                     refute cli.update
                     assert cli.update_failed?
                 end
                 it 'prints error message in case of failure' do
                     flexmock(Autoproj).should_receive(:error).with('foobar').once
-                    flexmock(Main).should_receive(:start)
-                                  .with(['update',
-                                         '--no-osdeps',
-                                         '--no-interactive',
-                                         '--force-reset',
-                                         ws.root_dir])
-                                  .and_return { raise ArgumentError, 'foobar' }
+                    flexmock(Update)
+                        .new_instances.should_receive(:run)
+                        .with([], osdeps: false,
+                                  packages: true,
+                                  config: true,
+                                  reset: :force).and_raise(ArgumentError, 'foobar')
                     refute cli.update
                     assert cli.update_failed?
                 end
