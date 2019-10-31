@@ -484,6 +484,7 @@ module Autoproj
                         .with([], osdeps: false,
                                   packages: true,
                                   config: true,
+                                  deps: true,
                                   reset: :force)
                     assert cli.update
                     refute cli.update_failed?
@@ -495,6 +496,7 @@ module Autoproj
                         .with([], osdeps: false,
                                   packages: true,
                                   config: true,
+                                  deps: true,
                                   reset: :force).and_raise
                     refute cli.update
                     assert cli.update_failed?
@@ -506,6 +508,7 @@ module Autoproj
                         .with([], osdeps: false,
                                   packages: true,
                                   config: true,
+                                  deps: true,
                                   reset: :force).and_raise(ArgumentError, 'foobar')
                     refute cli.update
                     assert cli.update_failed?

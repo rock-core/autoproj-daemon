@@ -287,6 +287,7 @@ module Autoproj
                     [], reset: :force,
                         packages: true,
                         config: true,
+                        deps: true,
                         osdeps: false
                 )
                 @update_failed = false
