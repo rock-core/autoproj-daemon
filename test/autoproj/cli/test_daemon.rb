@@ -463,6 +463,11 @@ module Autoproj
                     watcher = flexmock
                     flexmock(cli).should_receive(:watcher).and_return(watcher)
 
+                    # Eventhough 'add_*_hook don't yield, making the mocked versions
+                    # of these methods yield here is useful to test not only that
+                    # setup_hooks calls the proper methods to add the hooks but also
+                    # that the blocks do what they are expected to do (call handle_*_event
+                    # in this case).
                     watcher.should_receive(:add_push_hook)
                            .and_yield('push_event', options: 'options')
                     watcher.should_receive(:add_pull_request_hook)
