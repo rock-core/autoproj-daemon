@@ -502,7 +502,7 @@ module Autoproj
                                   packages: true,
                                   config: true,
                                   deps: true,
-                                  reset: :force).and_raise
+                                  reset: :force).and_raise(RuntimeError, 'foobar')
                     refute cli.update
                     assert cli.update_failed?
                 end
