@@ -285,8 +285,8 @@ module Autoproj
 
                     flexmock(@manager).should_receive(:commit_and_push_overrides)
                                       .with(branch_name, expected_overrides).once
-                    flexmock(@manager.bb).should_receive(:build)
-                                         .with(branch: branch_name).once
+                    flexmock(@manager.bb).should_receive(:build_pull_request)
+                                         .with(pr).once
 
                     @manager.trigger_build_if_branch_changed([branch])
                 end
@@ -334,8 +334,8 @@ module Autoproj
                     @manager.update_branches
                     @manager.update_pull_requests
                     branch_name = 'autoproj/rock-core/drivers-iodrivers_base/pulls/12'
-                    flexmock(@manager.bb).should_receive(:build)
-                                         .with(branch: branch_name).once
+                    flexmock(@manager.bb).should_receive(:build_pull_request)
+                                         .with(pr).once
                     flexmock(@manager).should_receive(:commit_and_push_overrides)
                                       .with(branch_name, overrides).once
 
@@ -386,8 +386,8 @@ module Autoproj
                     @manager.update_pull_requests
 
                     branch_name = 'autoproj/rock-core/drivers-iodrivers_base/pulls/12'
-                    flexmock(@manager.bb).should_receive(:build)
-                                         .with(branch: branch_name).once
+                    flexmock(@manager.bb).should_receive(:build_pull_request)
+                                         .with(pr).once
                     flexmock(@manager).should_receive(:commit_and_push_overrides)
                                       .with(branch_name, overrides).once
 

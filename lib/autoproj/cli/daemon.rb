@@ -82,7 +82,7 @@ module Autoproj
                 Autoproj.message "Push detected on #{push_event.owner}/"\
                     "#{push_event.name}, branch: #{push_event.branch}"
 
-                bb.build unless update_failed?
+                bb.build_mainline_push_event(push_event) unless update_failed?
                 restart_and_update
             end
 
@@ -103,7 +103,7 @@ module Autoproj
                 Autoproj.message "Push detected on #{pull_request.base_owner}/"\
                     "#{pull_request.base_name}##{pull_request.number}"
 
-                bb.build(branch: branch_name)
+                bb.build_pull_request(pull_request)
                 cache.dump
             end
 
@@ -131,7 +131,7 @@ module Autoproj
                     "on #{buildconf_package.owner}/#{buildconf_package.name}"
 
                 buildconf_manager.commit_and_push_overrides(branch_name, overrides)
-                bb.build(branch: branch_name)
+                bb.build_pull_request(pull_request)
 
                 cache.add(pull_request, overrides)
                 cache.dump

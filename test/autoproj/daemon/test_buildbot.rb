@@ -1,10 +1,6 @@
 # frozen_string_literal: true
 
 require 'autoproj/daemon/buildbot'
-require 'autoproj/extensions/configuration'
-require 'json'
-require 'net/http'
-require 'uri'
 
 # Autoproj's main module
 module Autoproj
@@ -96,6 +92,48 @@ module Autoproj
                         .should_receive('request').and_return(response)
 
                     refute bb.build
+                end
+            end
+            describe '#build_pull_request' do
+                it 'adds buildbot force build paramaters' do
+                    flexmock(bb).should_receive(:build).with(
+                        branch: 'autoproj/tidewise/drivers-gps_ublox/pulls/22',
+                        project: 'tidewise/drivers-gps_ublox',
+                        repository: 'https://github.com/tidewise/drivers-gps_ublox',
+                        revision: 'abcdef'
+                    ).once
+
+                    pr = create_pull_request(
+                        base_owner: 'tidewise',
+                        base_name: 'drivers-gps_ublox',
+                        number: 22,
+                        base_branch: 'master',
+                        head_owner: 'contributor',
+                        head_name: 'drivers-gps_ublox_fork',
+                        head_branch: 'feature',
+                        head_sha: 'abcdef'
+                    )
+
+                    bb.build_pull_request(pr)
+                end
+            end
+            describe '#build_mainline_push_event' do
+                it 'adds buildbot force build paramaters' do
+                    flexmock(bb).should_receive(:build).with(
+                        branch: 'master',
+                        project: 'tidewise/drivers-gps_ublox',
+                        repository: 'https://github.com/tidewise/drivers-gps_ublox',
+                        revision: 'abcdef'
+                    ).once
+
+                    event = create_push_event(
+                        owner: 'tidewise',
+                        name: 'drivers-gps_ublox',
+                        branch: 'feature',
+                        head_sha: 'abcdef'
+                    )
+
+                    bb.build_mainline_push_event(event)
                 end
             end
         end
