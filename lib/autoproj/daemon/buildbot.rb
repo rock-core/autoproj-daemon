@@ -4,6 +4,8 @@ require 'autoproj'
 require 'net/http'
 require 'uri'
 require 'json'
+require 'autoproj/daemon/github/pull_request'
+require 'autoproj/daemon/github/push_event'
 
 module Autoproj
     module Daemon
@@ -44,8 +46,35 @@ module Autoproj
                 )
             end
 
+            # @param [Github::PullRequest] options
+            # @return [Boolean]
+            def build_pull_request(pull_request)
+                repository = "#{pull_request.base_owner}/#{pull_request.base_name}"
+                branch_name = BuildconfManager.branch_name_by_pull_request(pull_request)
+
+                build(
+                    branch: branch_name,
+                    project: repository,
+                    repository: "https://github.com/#{repository}",
+                    revision: pull_request.head_sha
+                )
+            end
+
+            # @param [Github::PushEvent] options
+            # @return [Boolean]
+            def build_mainline_push_event(push_event)
+                repository = "#{push_event.owner}/#{push_event.name}"
+
+                build(
+                    branch: 'master',
+                    project: repository,
+                    repository: "https://github.com/#{repository}",
+                    revision: push_event.head_sha
+                )
+            end
+
             # @param [Hash] options
-            # @return [(Boolean, String)]
+            # @return [Boolean]
             def build(**options)
                 http = Net::HTTP.new(uri.host, uri.port)
                 request = Net::HTTP::Post.new(uri.request_uri, HEADER)

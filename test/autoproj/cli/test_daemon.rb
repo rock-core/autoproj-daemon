@@ -224,7 +224,8 @@ module Autoproj
                 end
                 describe 'a push on a mainline branch' do
                     it 'triggers build, restarts daemon and updates the workspace' do
-                        flexmock(cli.bb).should_receive(:build).once
+                        flexmock(cli.bb).should_receive(:build_mainline_push_event)
+                                        .with(@push_event).once
                         flexmock(cli).should_receive(:restart_and_update).once.ordered
                         cli.handle_push_event(@push_event, mainline: true)
                     end
@@ -320,9 +321,8 @@ module Autoproj
 
                         @buildconf_manager.should_receive(:commit_and_push_overrides).once
 
-                        branch_name = 'autoproj/rock-core/drivers-iodrivers_base/pulls/1'
-                        flexmock(cli.bb).should_receive(:build)
-                                        .with(branch: branch_name).once
+                        flexmock(cli.bb).should_receive(:build_pull_request)
+                                        .with(@pull_request).once
 
                         cli.handle_push_event(@push_event, mainline: false,
                                                            pull_request: @pull_request)
@@ -398,9 +398,8 @@ module Autoproj
                             [{ 'package' => { 'remote_branch' => 'something' } }]
                         )
 
-                        branch_name = 'autoproj/rock-core/drivers-iodrivers_base/pulls/1'
-                        flexmock(cli.bb).should_receive(:build)
-                                        .with(branch: branch_name).once
+                        flexmock(cli.bb).should_receive(:build_pull_request)
+                                        .with(@pull_request).once
 
                         @buildconf_manager.should_receive(:commit_and_push_overrides).once
                         cli.handle_pull_request_event(@pull_request_event)

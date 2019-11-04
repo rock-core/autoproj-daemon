@@ -69,7 +69,7 @@ module Autoproj
                     [pkg.owner, pkg.name, pkg.branch]
                 end
 
-                Autoproj.message "Fetching pull requests from "\
+                Autoproj.message 'Fetching pull requests from '\
                     "#{filtered_repos.size} repositories..."
 
                 @pull_requests = filtered_repos.flat_map do |pkg|
@@ -86,7 +86,8 @@ module Autoproj
                 end
 
                 total_repos = pull_requests.size + pull_requests_stale.size
-                Autoproj.message "Tracking #{total_repos} pull requests (#{pull_requests_stale.size} stale)"
+                Autoproj.message "Tracking #{total_repos} pull requests "\
+                    "(#{pull_requests_stale.size} stale)"
 
                 @pull_requests
             end
@@ -235,7 +236,8 @@ module Autoproj
             # @param [Github::Branch] branch
             # @return [void]
             def trigger_build(branch)
-                bb.build(branch: branch.branch_name)
+                pr = pull_request_by_branch(branch)
+                bb.build_pull_request(pr)
             end
 
             # @param [Array<Github::Branch>] branches
@@ -247,8 +249,8 @@ module Autoproj
                     next unless cache.changed?(pr, overrides)
 
                     commit_and_push_overrides(branch.branch_name, overrides)
+                    bb.build_pull_request(pr)
                     cache.add(pr, overrides)
-                    bb.build(branch: branch.branch_name)
                 end
             end
 
