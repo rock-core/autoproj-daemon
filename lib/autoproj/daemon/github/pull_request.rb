@@ -1,12 +1,14 @@
 # frozen_string_literal: true
 
 require 'json'
+require 'time'
 
 module Autoproj
     module Daemon
         module Github
             # A PullRequest model representation
             class PullRequest
+                attr_reader :model
                 def initialize(model)
                     @model = JSON.parse(model.to_json)
                 end
@@ -63,7 +65,23 @@ module Autoproj
 
                 # @return [String]
                 def head_name
+                    return nil unless @model['head']['repo']
+
                     @model['head']['repo']['name']
+                end
+
+                # @return [Time]
+                def updated_at
+                    Time.parse(@model['updated_at'])
+                end
+
+                # @return [String]
+                def body
+                    @model['body']
+                end
+
+                def ==(other)
+                    model == other.model
                 end
             end
         end

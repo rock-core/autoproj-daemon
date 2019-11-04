@@ -3,6 +3,7 @@
 require 'autoproj'
 require 'thor'
 require 'autoproj/cli/daemon'
+require 'faraday-http-cache'
 
 module Autoproj
     module CLI
@@ -12,6 +13,15 @@ module Autoproj
             option :update, type: 'boolean',
                             desc: 'do an update operation before starting'
             def start(*_args)
+                stack = Faraday::RackBuilder.new do |builder|
+                    builder.use Faraday::HttpCache, serializer: Marshal,
+                                                    shared_cache: false
+
+                    builder.use Octokit::Response::RaiseError
+                    builder.adapter Faraday.default_adapter
+                end
+                Octokit.middleware = stack
+
                 daemon = Daemon.new(Autoproj.workspace)
                 daemon.update if options[:update]
                 daemon.start

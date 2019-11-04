@@ -17,17 +17,18 @@ module Autoproj
                 @cache = PullRequestCache.new(ws)
 
                 @mock_package = flexmock
-                @main = flexmock(@ws).should_receive(
-                    'manifest.main_package_set.create_autobuild_package'
-                ).and_return(@mock_package)
                 @mock_package.should_receive(:importer)
+                flexmock(@buildconf).should_receive(:autobuild).and_return(@mock_package)
+
                 @manager = BuildconfManager.new(
                     @buildconf, @client, @packages, @cache, @ws
                 )
             end
 
             def add_package(pkg_name, owner, name, vcs = {}, options = {})
-                @packages << PackageRepository.new(pkg_name, owner, name, vcs)
+                package = PackageRepository.new(pkg_name, owner, name, vcs)
+                flexmock(package).should_receive(:autobuild).and_return(@mock_package)
+                @packages << package
                 return if options[:no_expect]
 
                 branch = vcs[:branch] || vcs[:remote_branch] || 'master'
@@ -36,7 +37,7 @@ module Autoproj
                 ).once.and_return(options[:pull_requests] || [])
             end
 
-            describe '#update_pull_requests' do
+            describe '#update_pull_requests' do # rubocop: disable Metrics/BlockLength
                 it 'does not poll same repository twice' do
                     add_package('drivers/iodrivers_base2', 'rock-core',
                                 'drivers-iodrivers_base', {}, no_expect: true)
@@ -66,6 +67,23 @@ module Autoproj
 
                     assert_equal [pr], @manager.update_pull_requests
                     assert_equal [pr], @manager.pull_requests
+                end
+
+                it 'partitions stale pull requests' do
+                    pr = create_pull_request(base_owner: 'rock-core',
+                                             base_name: 'drivers-gps_base',
+                                             number: 1,
+                                             updated_at: Time.new(1990, 1, 1),
+                                             base_branch: 'devel',
+                                             head_sha: 'abcdef')
+
+                    add_package('drivers/gps_base', 'rock-core',
+                                'drivers-gps_base',
+                                { branch: 'devel' }, pull_requests: [pr])
+
+                    assert_equal [], @manager.update_pull_requests
+                    assert_equal [], @manager.pull_requests
+                    assert_equal [pr], @manager.pull_requests_stale
                 end
             end
             describe '#update_branches' do
@@ -214,21 +232,19 @@ module Autoproj
                     overrides = []
                     overrides << {
                         'drivers/iodrivers_base' => {
-                            'github' => 'g-arjones/drivers-iodrivers_base_fork',
-                            'remote_branch' => 'add_feature'
+                            'remote_branch' => 'refs/pull/12/head'
                         }
                     }
                     overrides << {
                         'iodrivers_base' => {
-                            'github' => 'g-arjones/drivers-iodrivers_base_fork',
-                            'remote_branch' => 'add_feature'
+                            'remote_branch' => 'refs/pull/12/head'
                         }
                     }
                     @cache.add(pr, overrides)
 
                     @manager.update_branches
                     @manager.update_pull_requests
-                    flexmock(Autoproj).should_receive(:message).with(/Triggering/).never
+                    flexmock(@manager.bb).should_receive(:build).never
                     @manager.trigger_build_if_branch_changed([branch])
                 end
                 it 'triggers if overrides changed' do
@@ -255,17 +271,23 @@ module Autoproj
                                 { branch: 'master' }, pull_requests: [pr])
 
                     overrides = []
-                    overrides << {
-                        'drivers/iodrivers_base' => {
-                            'github' => 'g-arjones/iodrivers_base_fork',
-                            'remote_branch' => 'other_feature'
-                        }
-                    }
 
                     @cache.add(pr, overrides)
                     @manager.update_branches
                     @manager.update_pull_requests
-                    flexmock(Autoproj).should_receive(:message).with(/Triggering/).once
+
+                    branch_name = 'autoproj/rock-core/drivers-iodrivers_base/pulls/12'
+                    expected_overrides = [{
+                        'drivers/iodrivers_base' => {
+                            'remote_branch' => 'refs/pull/12/head'
+                        }
+                    }]
+
+                    flexmock(@manager).should_receive(:commit_and_push_overrides)
+                                      .with(branch_name, expected_overrides).once
+                    flexmock(@manager.bb).should_receive(:build_pull_request)
+                                         .with(pr).once
+
                     @manager.trigger_build_if_branch_changed([branch])
                 end
                 it 'triggers if PR head sha changed' do
@@ -294,8 +316,7 @@ module Autoproj
                     overrides = []
                     overrides << {
                         'drivers/iodrivers_base' => {
-                            'github' => 'g-arjones/iodrivers_base_fork',
-                            'remote_branch' => 'add_feature'
+                            'remote_branch' => 'refs/pull/12/head'
                         }
                     }
 
@@ -306,12 +327,18 @@ module Autoproj
                                                     head_owner: 'g-arjones',
                                                     head_name: 'iodrivers_base_fork',
                                                     head_branch: 'add_feature',
-                                                    head_sha: 'efghij')
+                                                    head_sha: 'efghij',
+                                                    updated_at: Time.now - 2)
 
                     @cache.add(pr_cached, overrides)
                     @manager.update_branches
                     @manager.update_pull_requests
-                    flexmock(Autoproj).should_receive(:message).with(/Triggering/).once
+                    branch_name = 'autoproj/rock-core/drivers-iodrivers_base/pulls/12'
+                    flexmock(@manager.bb).should_receive(:build_pull_request)
+                                         .with(pr).once
+                    flexmock(@manager).should_receive(:commit_and_push_overrides)
+                                      .with(branch_name, overrides).once
+
                     @manager.trigger_build_if_branch_changed([branch])
                 end
                 it 'triggers if PR base branch changed' do
@@ -340,8 +367,7 @@ module Autoproj
                     overrides = []
                     overrides << {
                         'drivers/iodrivers_base' => {
-                            'github' => 'g-arjones/iodrivers_base_fork',
-                            'remote_branch' => 'add_feature'
+                            'remote_branch' => 'refs/pull/12/head'
                         }
                     }
 
@@ -352,13 +378,89 @@ module Autoproj
                                                     head_owner: 'g-arjones',
                                                     head_name: 'iodrivers_base_fork',
                                                     head_branch: 'add_feature',
-                                                    head_sha: 'abcdef')
+                                                    head_sha: 'abcdef',
+                                                    updated_at: Time.now - 2)
 
                     @cache.add(pr_cached, overrides)
                     @manager.update_branches
                     @manager.update_pull_requests
-                    flexmock(Autoproj).should_receive(:message).with(/Triggering/).once
+
+                    branch_name = 'autoproj/rock-core/drivers-iodrivers_base/pulls/12'
+                    flexmock(@manager.bb).should_receive(:build_pull_request)
+                                         .with(pr).once
+                    flexmock(@manager).should_receive(:commit_and_push_overrides)
+                                      .with(branch_name, overrides).once
+
                     @manager.trigger_build_if_branch_changed([branch])
+                end
+            end
+
+            describe '#update_cache' do
+                it 'removes pull requests that are no longer tracked' do
+                    one = create_pull_request(
+                        base_owner: 'rock-core',
+                        base_name: 'drivers-iodrivers_base',
+                        number: 12,
+                        base_branch: 'develop',
+                        head_owner: 'g-arjones',
+                        head_name: 'drivers-iodrivers_base',
+                        head_branch: 'add_feature',
+                        head_sha: 'abcdef'
+                    )
+
+                    two = create_pull_request(
+                        base_owner: 'rock-core',
+                        base_name: 'drivers-iodrivers_base',
+                        number: 14,
+                        base_branch: 'develop',
+                        head_owner: 'g-arjones',
+                        head_name: 'drivers-iodrivers_base',
+                        head_branch: 'other_feature',
+                        head_sha: 'ghijkl'
+                    )
+
+                    three = create_pull_request(
+                        base_owner: 'rock-core',
+                        base_name: 'drivers-iodrivers_base',
+                        number: 16,
+                        base_branch: 'develop',
+                        head_owner: 'g-arjones',
+                        head_name: 'drivers-iodrivers_base',
+                        head_branch: 'awesome_feature',
+                        head_sha: 'abcdef'
+                    )
+
+                    @manager.cache.add(one, [])
+                    @manager.cache.add(two, [])
+                    @manager.cache.add(three, [])
+                    @manager.pull_requests << three
+
+                    flexmock(@manager.cache).should_receive(:dump).once
+                    assert_equal 3, @manager.cache.pull_requests.size
+                    @manager.update_cache
+                    assert_equal 1, @manager.cache.pull_requests.size
+                    refute_nil @manager.cache.cached(three)
+                end
+                it 'keeps stale pull requests in the cache' do
+                    pr = create_pull_request(
+                        base_owner: 'rock-core',
+                        base_name: 'drivers-iodrivers_base',
+                        number: 12,
+                        base_branch: 'develop',
+                        head_owner: 'g-arjones',
+                        head_name: 'drivers-iodrivers_base',
+                        head_branch: 'add_feature',
+                        updated_at: Time.new(1990, 1, 1),
+                        head_sha: 'abcdef'
+                    )
+
+                    @manager.cache.add(pr, [])
+                    @manager.pull_requests_stale << pr
+
+                    flexmock(@manager.cache).should_receive(:dump).once
+                    @manager.update_cache
+                    assert_equal 1, @manager.cache.pull_requests.size
+                    refute_nil @manager.cache.cached(pr)
                 end
             end
             # rubocop: enable Metrics/BlockLength
