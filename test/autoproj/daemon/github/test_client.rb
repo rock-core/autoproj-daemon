@@ -51,6 +51,17 @@ module Autoproj
                     assert_kind_of PushEvent, fetched_events.first
                     assert_kind_of PullRequestEvent, fetched_events.last
                 end
+
+                it 'retries on connection failure' do
+                    runs = 0
+                    assert_raises Faraday::ConnectionFailed do
+                        client.with_retry(1) do
+                            runs += 1
+                            raise Faraday::ConnectionFailed, 'Connection failed'
+                        end
+                    end
+                    assert_equal 2, runs
+                end
             end
         end
     end
