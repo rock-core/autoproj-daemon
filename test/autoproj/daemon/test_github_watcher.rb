@@ -17,6 +17,7 @@ module Autoproj
             attr_reader :ws
             before do
                 @ws = ws_create
+                @ws.config.daemon_polling_period = 0
                 @client = flexmock(Github::Client.new)
                 @cache = PullRequestCache.new(@ws)
                 @packages = []
@@ -36,6 +37,47 @@ module Autoproj
                                 'drivers-iodrivers_base')
 
                     assert_equal %w[rock-core tidewise], watcher.owners
+                end
+            end
+
+            describe '#organizations' do
+                it 'returns the list of users that are an organization' do
+                    add_package('drivers/gps_base', 'rock-core', 'drivers-gps_base')
+                    add_package('drivers/gps_ublox', 'tidewise', 'drivers-gps_ublox')
+                    add_package('drivers/iodrivers_base', 'g-arjones',
+                                'drivers-iodrivers_base')
+
+                    @client.should_receive(:organization?)
+                           .with('rock-core').and_return(true).once
+                    @client.should_receive(:organization?)
+                           .with('tidewise').and_return(true).once
+                    @client.should_receive(:organization?)
+                           .with('g-arjones').and_return(false).once
+
+                    assert_equal %w[rock-core tidewise], watcher.organizations
+                    assert watcher.organization?('rock-core')
+                    assert watcher.organization?('tidewise')
+                    refute watcher.organization?('g-arjones')
+                end
+            end
+
+            describe '#watch' do
+                it 'passes organization flag to the client' do
+                    add_package('drivers/gps_base', 'rock-core', 'drivers-gps_base')
+                    add_package('tools/roby', 'g-arjones', 'tools-roby')
+
+                    @client.should_receive(:organization?)
+                           .with('rock-core').and_return(true).once
+                    @client.should_receive(:organization?)
+                           .with('g-arjones').and_return(false).once
+
+                    @client.should_receive(:fetch_events)
+                           .with('rock-core', organization: true).once.and_return([])
+                    @client.should_receive(:fetch_events)
+                           .with('g-arjones', organization: false).once.and_return([])
+
+                    flexmock(watcher).should_receive(:loop).explicitly.and_yield
+                    watcher.watch
                 end
             end
 

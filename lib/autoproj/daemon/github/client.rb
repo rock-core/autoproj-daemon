@@ -52,10 +52,29 @@ module Autoproj
                     nil
                 end
 
-                # @return [Array<PushEvent, PullRequestEvent>]
-                def fetch_events(owner)
+                # @private
+                #
+                # @param [String] owner
+                # @param [Boolean] organization
+                # @return [void]
+                private def events_for(owner, organization: false)
+                    return @client.user_events(owner) unless organization
+
+                    @client.organization_events(owner)
+                end
+
+                # @param [String] user
+                # @return [Boolean]
+                def organization?(user)
                     with_retry do
-                        @client.user_events(owner).map do |event|
+                        @client.user(user)['type'] == 'Organization'
+                    end
+                end
+
+                # @return [Array<PushEvent, PullRequestEvent>]
+                def fetch_events(owner, organization: false)
+                    with_retry do
+                        events_for(owner, organization: organization).map do |event|
                             type = event['type']
                             next unless %w[PullRequestEvent PushEvent].include? type
 
