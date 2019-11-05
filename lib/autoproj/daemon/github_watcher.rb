@@ -31,6 +31,7 @@ module Autoproj
                 @polling_period = ws.config.daemon_polling_period
                 @pull_request_hooks = []
                 @push_hooks = []
+                @organizations = nil
             end
             # rubocop:enable Naming/UncommunicativeMethodParamName
 
@@ -47,6 +48,17 @@ module Autoproj
                 packages.any? do |pkg|
                     pkg.owner == owner && pkg.name == name && pkg.branch == branch
                 end
+            end
+
+            # @return [Array<String>]
+            def organizations
+                @organizations ||= owners.select { |owner| client.organization?(owner) }
+            end
+
+            # @param [String] user
+            # @return [Boolean]
+            def organization?(user)
+                organizations.include?(user)
             end
 
             # @param [String] owner
@@ -212,7 +224,11 @@ module Autoproj
                 Autoproj.message "Polling events from #{owners.size} users..."
                 loop do
                     owners.each do |owner|
-                        handle_owner_events(client.fetch_events(owner))
+                        handle_owner_events(
+                            client.fetch_events(
+                                owner, organization: organization?(owner)
+                            )
+                        )
                     end
                     sleep @polling_period
                 end

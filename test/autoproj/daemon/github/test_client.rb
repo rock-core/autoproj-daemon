@@ -52,6 +52,21 @@ module Autoproj
                     assert_kind_of PullRequestEvent, fetched_events.last
                 end
 
+                it 'uses the proper api endpoint to fetch events' do
+                    flexmock(Octokit::Client).new_instances.should_receive(:organization_events)
+                                             .with('rock-core').and_return([])
+                    flexmock(Octokit::Client).new_instances.should_receive(:user_events)
+                                             .with('g-arjones').and_return([])
+
+                    @client = Client.new(auto_paginate: false)
+                    client.fetch_events('rock-core', organization: true)
+                    client.fetch_events('g-arjones', organization: false)
+                end
+
+                it 'returns true if a given user is an organization' do
+                    assert client.organization?('github')
+                end
+
                 it 'retries on connection failure' do
                     runs = 0
                     assert_raises Faraday::ConnectionFailed do

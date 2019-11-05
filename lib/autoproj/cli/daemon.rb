@@ -29,6 +29,7 @@ module Autoproj
                 @bb = Autoproj::Daemon::Buildbot.new(workspace)
                 @cache = Autoproj::Daemon::PullRequestCache.load(workspace)
                 @ws = workspace
+                @packages = nil
                 ws.config.load if File.exist?(ws.config_file_path)
                 @update_failed = false
                 ws.load_config
