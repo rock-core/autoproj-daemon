@@ -12,10 +12,10 @@ module Autoproj
             OPEN_TASK_RX = %r{(?:-\s*\[\s*\]\s*)([A-Za-z\d+_\-\:\/\#\.]+)}.freeze
 
             PULL_REQUEST_URL_RX = %r{https?\:\/\/(?:\w+\.)?github.com(?:\/+)
-                ([A-Za-z\d+_\-]+)(?:\/+)([A-Za-z\d+_\-]+)(?:\/+)pull(?:\/+)(\d+)}x.freeze
+                ([A-Za-z\d+_\-\.]+)(?:\/+)([A-Za-z\d+_\-\.]+)(?:\/+)pull(?:\/+)(\d+)}x.freeze
 
-            OWNER_NAME_AND_NUMBER_RX = %r{([A-Za-z\d+_\-]+)\/
-                ([A-Za-z\d+_\-]+)\#(\d+)}x.freeze
+            OWNER_NAME_AND_NUMBER_RX = %r{([A-Za-z\d+_\-\.]+)\/
+                ([A-Za-z\d+_\-\.]+)\#(\d+)}x.freeze
 
             NUMBER_RX = /\#(\d+)/.freeze
 

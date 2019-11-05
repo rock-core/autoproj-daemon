@@ -40,11 +40,11 @@ module Autoproj
             describe 'PULL_REQUEST_URL_RX' do
                 it 'parses owner, name and number from PR url' do
                     owner, name, number = OverridesRetriever::PULL_REQUEST_URL_RX.match(
-                        'https://github.com////g-arjones//demo_pkg//pull//122'
+                        'https://github.com////g-arjones._1//demo.pkg_1//pull//122'
                     )[1..-1]
 
-                    assert_equal 'g-arjones', owner
-                    assert_equal 'demo_pkg', name
+                    assert_equal 'g-arjones._1', owner
+                    assert_equal 'demo.pkg_1', name
                     assert_equal '122', number
                 end
             end
@@ -53,11 +53,11 @@ module Autoproj
                 it 'parses owner, name and number from PR path' do
                     owner, name, number =
                         OverridesRetriever::OWNER_NAME_AND_NUMBER_RX.match(
-                            'g-arjones/demo_pkg#122'
+                            'g-arjones._1/demo.pkg_1#122'
                         )[1..-1]
 
-                    assert_equal 'g-arjones', owner
-                    assert_equal 'demo_pkg', name
+                    assert_equal 'g-arjones._1', owner
+                    assert_equal 'demo.pkg_1', name
                     assert_equal '122', number
                 end
             end
@@ -92,14 +92,14 @@ module Autoproj
                 it 'only parses the first list' do
                     body = <<~EOFBODY
                         Depends on:
-                        - [ ] one
+                        - [ ] one._1
 
                         List of something else, not dependencies:
                         - [ ] two
                     EOFBODY
 
                     tasks = []
-                    tasks << 'one'
+                    tasks << 'one._1'
                     assert_equal tasks, retriever.parse_task_list(body)
                 end
                 it 'allows multilevel task lists' do
@@ -124,19 +124,19 @@ module Autoproj
             end
             describe '#task_to_pull_request' do # rubocop: disable Metrics/BlockLength
                 it 'returns a pull request when given a url' do
-                    pr = add_pull_request('g-arjones', 'demo_pkg', 22, '')
+                    pr = add_pull_request('g-arjones._1', 'demo.pkg_1', 22, '')
                     assert_equal pr, retriever.task_to_pull_request(
-                        'https://github.com/g-arjones/demo_pkg/pull/22', pr
+                        'https://github.com/g-arjones._1/demo.pkg_1/pull/22', pr
                     )
                 end
                 it 'returns a pull request when given a full path' do
-                    pr = add_pull_request('g-arjones', 'demo_pkg', 22, '')
+                    pr = add_pull_request('g-arjones._1', 'demo.pkg_1', 22, '')
                     assert_equal pr, retriever.task_to_pull_request(
-                        'g-arjones/demo_pkg#22', pr
+                        'g-arjones._1/demo.pkg_1#22', pr
                     )
                 end
                 it 'returns a pull request when given a relative path' do
-                    pr = add_pull_request('g-arjones', 'demo_pkg', 22, '')
+                    pr = add_pull_request('g-arjones._1', 'demo.pkg_1', 22, '')
                     assert_equal pr, retriever.task_to_pull_request(
                         '#22', pr
                     )
@@ -178,7 +178,7 @@ module Autoproj
                     body_driver_orogen_gps_ublox = <<~EOFBODY
                         Depends on:
                         - [ ] rock-core/drivers-orogen-iodrivers_base#33
-                        - [ ] rock-core/base-cmake#44
+                        - [ ] tidewise/tidewise.common-package_set#44
                     EOFBODY
                     pr_driver_orogen_gps_ublox = add_pull_request(
                         'tidewise', 'drivers-orogen-gps_ublox',
@@ -189,15 +189,15 @@ module Autoproj
                         'rock-core', 'drivers-orogen-iodrivers_base',
                         33, nil
                     )
-                    pr_base_cmake = add_pull_request(
-                        'rock-core', 'base-cmake',
+                    pr_package_set = add_pull_request(
+                        'tidewise', 'tidewise.common-package_set',
                         44, nil
                     )
 
                     depends = retriever.retrieve_dependencies(pr_drivers_gps_ublox)
                     assert_equal [pr_driver_orogen_gps_ublox,
                                   pr_driver_orogen_iodrivers_base,
-                                  pr_base_cmake], depends
+                                  pr_package_set], depends
                 end
                 it 'breaks cyclic dependencies' do
                     body_driver_gps_ublox = <<~EOFBODY
