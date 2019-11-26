@@ -122,6 +122,23 @@ module Autoproj
                 end
             end
 
+            describe '#dump' do
+                it 'creates a cache file with all PRs' do
+                    pr = create_pull_request(
+                        base_owner: 'rock-core',
+                        base_name: 'foobar',
+                        number: 1,
+                        base_branch: 'master',
+                        head_sha: 'abcdef'
+                    )
+                    @cache.add(pr, ['pkg' => { 'remote_branch' => 'develop' }])
+                    @cache.dump
+
+                    loaded_cache = PullRequestCache.load(@ws)
+                    assert_equal @cache.pull_requests[0], loaded_cache.pull_requests[0]
+                end
+            end
+
             describe '#changed?' do # rubocop: disable Metrics/BlockLength
                 it 'returns true if PR is not cached' do
                     pr = create_pull_request(base_owner: 'rock-core',
