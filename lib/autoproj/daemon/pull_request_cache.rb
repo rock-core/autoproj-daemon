@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'autoproj'
+require 'autoproj/ops/atomic_write'
 require 'autoproj/daemon/github/pull_request'
 require 'yaml'
 
@@ -85,7 +86,7 @@ module Autoproj
 
             # @return [void]
             def dump
-                File.open(cache_file, 'w') do |file|
+                Autoproj::Ops.atomic_write(cache_file) do |file|
                     file.write(pull_requests.to_yaml)
                 end
             end
