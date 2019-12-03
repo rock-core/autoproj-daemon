@@ -511,7 +511,35 @@ module Autoproj
                         .should_receive(:handle_pull_request_events)
                         .with(@events[2..3]).once
 
-                    watcher.handle_owner_events(@events)
+                    watcher.handle_owner_events('rock-core', @events)
+                end
+                it 'ignores events on third-party repos' do
+                    @events << create_push_event(
+                        owner: 'rock-core',
+                        name: 'drivers-gps_ublox',
+                        branch: 'master',
+                        created_at: Time.utc(2019, 'sep', 22, 23, 53, 35)
+                    )
+                    @events << create_pull_request_event(
+                        base_owner: 'rock-core',
+                        base_name: 'drivers-gps_ublox',
+                        base_branch: 'master',
+                        state: 'open',
+                        created_at: Time.utc(2019, 'sep', 22, 23, 53, 35)
+                    )
+
+                    add_package('drivers/gps_ublox', 'rock-core', 'drivers-gps_ublox')
+                    @cache.add(@events[1].pull_request, [])
+
+                    flexmock(watcher)
+                        .should_receive(:handle_push_events)
+                        .with([]).once
+
+                    flexmock(watcher)
+                        .should_receive(:handle_pull_request_events)
+                        .with([]).once
+
+                    watcher.handle_owner_events('tidewise', @events)
                 end
                 # rubocop: enable Metrics/BlockLength
             end
