@@ -151,12 +151,16 @@ module Autoproj
                                             pull_request: pull_request)
             end
 
+            # @param [String] owner The owner of the events feed
             # @param [Array] events An array of events
             # @return [void]
-            def handle_owner_events(events)
+            def handle_owner_events(owner, events)
                 events = filter_events(events)
                 push_events, pull_request_events =
                     events.partition { |event| event.kind_of? Github::PushEvent }
+
+                push_events.select! { |e| e.owner == owner }
+                pull_request_events.select! { |e| e.pull_request.base_owner == owner }
 
                 handle_push_events(push_events)
                 handle_pull_request_events(pull_request_events)
@@ -225,6 +229,7 @@ module Autoproj
                 loop do
                     owners.each do |owner|
                         handle_owner_events(
+                            owner,
                             client.fetch_events(
                                 owner, organization: organization?(owner)
                             )
