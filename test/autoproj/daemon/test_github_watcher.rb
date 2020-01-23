@@ -22,6 +22,9 @@ module Autoproj
                 @cache = PullRequestCache.new(@ws)
                 @packages = []
                 @watcher = GithubWatcher.new(@client, @packages, @cache, @ws)
+
+                flexmock(Time).should_receive(:now)
+                              .and_return(Time.utc(2019, 'oct', 20, 0, 0, 0))
             end
 
             def add_package(pkg_name, owner, name, branch = 'master')
