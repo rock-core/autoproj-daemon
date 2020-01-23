@@ -232,12 +232,12 @@ module Autoproj
                     overrides = []
                     overrides << {
                         'drivers/iodrivers_base' => {
-                            'remote_branch' => 'refs/pull/12/head'
+                            'remote_branch' => 'refs/pull/12/merge'
                         }
                     }
                     overrides << {
                         'iodrivers_base' => {
-                            'remote_branch' => 'refs/pull/12/head'
+                            'remote_branch' => 'refs/pull/12/merge'
                         }
                     }
                     @cache.add(pr, overrides)
@@ -279,7 +279,7 @@ module Autoproj
                     branch_name = 'autoproj/rock-core/drivers-iodrivers_base/pulls/12'
                     expected_overrides = [{
                         'drivers/iodrivers_base' => {
-                            'remote_branch' => 'refs/pull/12/head'
+                            'remote_branch' => 'refs/pull/12/merge'
                         }
                     }]
 
@@ -316,7 +316,7 @@ module Autoproj
                     overrides = []
                     overrides << {
                         'drivers/iodrivers_base' => {
-                            'remote_branch' => 'refs/pull/12/head'
+                            'remote_branch' => 'refs/pull/12/merge'
                         }
                     }
 
@@ -367,7 +367,7 @@ module Autoproj
                     overrides = []
                     overrides << {
                         'drivers/iodrivers_base' => {
-                            'remote_branch' => 'refs/pull/12/head'
+                            'remote_branch' => 'refs/pull/12/merge'
                         }
                     }
 
