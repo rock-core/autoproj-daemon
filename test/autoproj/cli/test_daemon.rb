@@ -220,10 +220,25 @@ module Autoproj
                     @push_event = create_push_event(owner: 'rock-core',
                                                     name: 'drivers-iodrivers_base',
                                                     branch: 'master',
+                                                    head_sha: 'ghijklm',
                                                     created_at: Time.now)
                 end
                 describe 'a push on a mainline branch' do
                     it 'triggers build, restarts daemon and updates the workspace' do
+                        watcher = flexmock(Autoproj::Daemon::GithubWatcher)
+                        flexmock(cli).should_receive(:watcher).and_return(watcher)
+
+                        pkg = Autoproj::Daemon::PackageRepository.new(
+                            'drivers/iodrivers_base',
+                            'rock-core',
+                            'drivers-iodrivers_base',
+                            branch: 'master'
+                        )
+
+                        flexmock(pkg).should_receive(:head_sha).and_return('abcdef')
+                        watcher.should_receive(:package_affected_by_push_event).explicitly
+                               .and_return(pkg)
+
                         flexmock(cli.bb).should_receive(:build_mainline_push_event)
                                         .with(@push_event).once
                         flexmock(cli).should_receive(:restart_and_update).once.ordered
