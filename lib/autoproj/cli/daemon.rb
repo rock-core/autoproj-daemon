@@ -68,13 +68,28 @@ module Autoproj
                 @update_failed
             end
 
-            # Whether an attempt to update the workspace has failed
+            # Whether the given PR targets the buildconf
             #
             # @param [Autoproj::Daemon::Github::PullRequest] pull_request
             # @return [Boolean]
             def buildconf_pull_request?(pull_request)
                 pull_request.base_owner == buildconf_package.owner &&
                     pull_request.base_name == buildconf_package.name
+            end
+
+            # Whether the given push event belongs to the buildconf
+            #
+            # @param [Autoproj::Daemon::Github::PushEvent] push_event
+            # @return [Boolean]
+            def buildconf_push?(push_event)
+                push_event.owner == buildconf_package.owner &&
+                    push_event.name == buildconf_package.name
+            end
+
+            # @return [void]
+            def clear_and_dump_cache
+                @cache.clear
+                @cache.dump
             end
 
             # @param [Github::PushEvent] push_event
@@ -86,6 +101,8 @@ module Autoproj
                     "(remote: #{push_event.head_sha}, local: #{package.head_sha})"
 
                 bb.build_mainline_push_event(push_event) unless update_failed?
+
+                clear_and_dump_cache if buildconf_push?(push_event)
                 restart_and_update
             end
 

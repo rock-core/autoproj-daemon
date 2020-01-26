@@ -248,6 +248,8 @@ module Autoproj
                     overrides = overrides_for_pull_request(pr)
                     next unless cache.changed?(pr, overrides)
 
+                    Autoproj.message 'Updating '\
+                                     "#{pr.base_owner}/#{pr.base_name}##{pr.number}"
                     commit_and_push_overrides(branch.branch_name, overrides)
                     bb.build_pull_request(pr)
                     cache.add(pr, overrides)

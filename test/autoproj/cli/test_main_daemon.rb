@@ -18,6 +18,8 @@ module Autoproj
                 it 'starts the daemon' do
                     flexmock(Daemon).new_instances.should_receive(:update).never
                     flexmock(Daemon).new_instances.should_receive(:start).once
+                    flexmock(Daemon).new_instances
+                                    .should_receive(:clear_and_dump_cache).never
                     in_ws do
                         MainDaemon.start(%w[start])
                     end
@@ -28,6 +30,13 @@ module Autoproj
                     flexmock(Daemon).new_instances.should_receive(:start).once.ordered
                     in_ws do
                         MainDaemon.start(%w[start --update])
+                    end
+                end
+                it 'clears the internal cache upon starting the daemon' do
+                    flexmock(Daemon).new_instances.should_receive(:clear_and_dump_cache)
+                    flexmock(Daemon).new_instances.should_receive(:start).once.ordered
+                    in_ws do
+                        MainDaemon.start(%w[start --clear-cache])
                     end
                 end
             end

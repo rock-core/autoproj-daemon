@@ -10,6 +10,9 @@ module Autoproj
         # CLI interface for autoproj-daemon
         class MainDaemon < Thor
             desc 'start [OPTIONS]', 'Starts autoproj daemon plugin'
+            option :clear_cache, type: 'boolean',
+                                 desc: 'clear internal PR cache '\
+                                       '(rebuilds all tracked PRs)'
             option :update, type: 'boolean',
                             desc: 'do an update operation before starting'
             def start(*_args)
@@ -23,6 +26,7 @@ module Autoproj
                 Octokit.middleware = stack
 
                 daemon = Daemon.new(Autoproj.workspace)
+                daemon.clear_and_dump_cache if options[:clear_cache]
                 daemon.update if options[:update]
                 daemon.start
             end
