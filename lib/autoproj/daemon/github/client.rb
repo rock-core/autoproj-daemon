@@ -2,6 +2,7 @@
 
 require 'json'
 require 'octokit'
+require 'autoproj'
 require 'autoproj/daemon/github/branch'
 require 'autoproj/daemon/github/pull_request'
 require 'autoproj/daemon/github/push_event'
@@ -17,9 +18,30 @@ module Autoproj
                     @client.auto_paginate = options[:auto_paginate]
                 end
 
+                # @return [String]
+                def humanize_time(secs)
+                    [[60, :s], [60, :m], [24, :h]].map do |count, name|
+                        if secs > 0
+                            secs, n = secs.divmod(count)
+                            "#{n.to_i}#{name}" unless n.to_i == 0
+                        end
+                    end.compact.reverse.join('')
+                end
+
+                # @return [void]
+                def check_rate_limit_and_wait
+                    return if @client.rate_limit!.remaining > 0
+
+                    wait_for = @client.rate_limit.resets_in
+                    Autoproj.message 'API calls rate limit exceeded, waiting for '\
+                                     "#{humanize_time(wait_for)}"
+                    sleep wait_for
+                end
+
                 # @return [void]
                 def with_retry(times = 5)
                     retries ||= 0
+                    check_rate_limit_and_wait
                     yield
                 rescue Faraday::ConnectionFailed
                     retries += 1
