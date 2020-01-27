@@ -80,8 +80,10 @@ module Autoproj
             # @param [Github::PushEvent] push_event
             # @return [void]
             def handle_mainline_push(push_event)
+                package = watcher.package_affected_by_push_event(push_event)
                 Autoproj.message "Push detected on #{push_event.owner}/"\
-                    "#{push_event.name}, branch: #{push_event.branch}"
+                    "#{push_event.name}, branch: #{push_event.branch} "\
+                    "(remote: #{push_event.head_sha}, local: #{package.head_sha})"
 
                 bb.build_mainline_push_event(push_event) unless update_failed?
                 restart_and_update
