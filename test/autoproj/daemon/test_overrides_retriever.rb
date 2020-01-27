@@ -2,6 +2,7 @@
 
 require 'autoproj/daemon/overrides_retriever'
 require 'octokit'
+require 'test_helper'
 
 module Autoproj
     # Main daemon module
@@ -10,31 +11,24 @@ module Autoproj
             # @return [Autoproj::Daemon::OverridesRetriever]
             attr_reader :retriever
 
-            # @return [FlexMock]
             attr_reader :client
-
+            include Autoproj::Daemon::TestHelpers
             before do
-                @client = flexmock
+                autoproj_daemon_mock_github_api
+
+                @client = Github::Client.new
                 @retriever = OverridesRetriever.new(client)
                 @pull_requests = {}
-                client.should_receive(:pull_requests)
-                      .with(any, any)
-                      .and_return do |owner, name|
-                          @pull_requests["#{owner}/#{name}"] || []
-                      end
             end
 
             def add_pull_request(owner, name, number, body, state: 'open')
-                pr = create_pull_request(
+                autoproj_daemon_add_pull_request(
                     base_owner: owner,
                     base_name: name,
                     body: body,
                     number: number,
                     state: state
                 )
-                @pull_requests["#{owner}/#{name}"] ||= []
-                @pull_requests["#{owner}/#{name}"] << pr
-                pr
             end
 
             describe 'PULL_REQUEST_URL_RX' do

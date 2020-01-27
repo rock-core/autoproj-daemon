@@ -172,10 +172,10 @@ module Autoproj
                                                  buildconf_package.name, branch_name)
                     cache.delete(pull_request)
 
-                # rubocop: disable Lint/HandleExceptions
+                # rubocop: disable Lint/SuppressedException
                 rescue Octokit::UnprocessableEntity
                 end
-                # rubocop: enable Lint/HandleExceptions
+                # rubocop: enable Lint/SuppressedException
 
                 cache.dump
             end
@@ -264,10 +264,8 @@ module Autoproj
                 )
             end
 
-            # Starts watching the whole workspace
-            #
             # @return [void]
-            def start
+            def prepare
                 unless ws.config.daemon_api_key
                     raise Autoproj::ConfigError, 'you must configure the '\
                         'daemon before starting'
@@ -291,6 +289,13 @@ module Autoproj
                 )
 
                 setup_hooks
+            end
+
+            # Starts watching the whole workspace
+            #
+            # @return [void]
+            def start
+                prepare
                 buildconf_manager.synchronize_branches unless update_failed?
                 watcher.watch
             end
