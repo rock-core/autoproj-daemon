@@ -10,6 +10,7 @@ require 'time'
 
 module Autoproj
     # Autoproj's main CLI module
+    # rubocop: disable Metrics/ModuleLength
     module CLI
         describe Daemon do # rubocop: disable Metrics/BlockLength
             attr_reader :cli
@@ -223,21 +224,78 @@ module Autoproj
                                                     head_sha: 'ghijklm',
                                                     created_at: Time.now)
                 end
+                # rubocop: disable Metrics/BlockLength
                 describe 'a push on a mainline branch' do
-                    it 'triggers build, restarts daemon and updates the workspace' do
-                        watcher = flexmock(Autoproj::Daemon::GithubWatcher)
-                        flexmock(cli).should_receive(:watcher).and_return(watcher)
+                    before do
+                        @push_event = create_push_event(
+                            owner: 'rock-core',
+                            name: 'buildconf',
+                            branch: 'master',
+                            head_sha: 'efghij',
+                            created_at: Time.now
+                        )
 
-                        pkg = Autoproj::Daemon::PackageRepository.new(
+                        @buildconf_package = Autoproj::Daemon::PackageRepository.new(
+                            'main configuration',
+                            'rock-core',
+                            'buildconf',
+                            branch: 'master'
+                        )
+
+                        @pull_request = create_pull_request(
+                            base_owner: 'rock-core',
+                            base_name: 'drivers-iodrivers_base',
+                            base_branch: 'master',
+                            head_owner: 'rock-core',
+                            head_name: 'drivers-iodrivers_base',
+                            head_branch: 'feature',
+                            head_sha: 'abcdef',
+                            number: 1
+                        )
+
+                        @overrides = [
+                            {
+                                'drivers-iodrivers_base' => {
+                                    'remote_branch' => 'feature'
+                                }
+                            }
+                        ]
+
+                        @watcher = flexmock(Autoproj::Daemon::GithubWatcher)
+                        flexmock(cli).should_receive(:watcher).and_return(@watcher)
+
+                        @pkg = Autoproj::Daemon::PackageRepository.new(
                             'drivers/iodrivers_base',
                             'rock-core',
                             'drivers-iodrivers_base',
                             branch: 'master'
                         )
 
-                        flexmock(pkg).should_receive(:head_sha).and_return('abcdef')
-                        watcher.should_receive(:package_affected_by_push_event).explicitly
-                               .and_return(pkg)
+                        flexmock(@buildconf_package).should_receive(:head_sha)
+                                                    .and_return('abcdef')
+
+                        flexmock(cli).should_receive(:buildconf_package)
+                                     .and_return(@buildconf_package)
+                    end
+
+                    it 'clears cache if it is a buidconf push' do
+                        flexmock(cli.bb).should_receive(:build_mainline_push_event)
+                        flexmock(cli).should_receive(:restart_and_update).once.ordered
+                        @watcher.should_receive(:package_affected_by_push_event).explicitly
+                                .and_return(@buildconf_package)
+
+                        cli.cache.add(@pull_request, @overrides)
+                        cli.cache.dump
+                        assert_equal 1, cli.cache.reload.pull_requests.size
+
+                        cli.handle_push_event(@push_event, mainline: true)
+                        assert_equal 0, cli.cache.reload.pull_requests.size
+                    end
+
+                    it 'triggers build, restarts daemon and updates the workspace' do
+                        flexmock(@pkg).should_receive(:head_sha).and_return('abcdef')
+                        @watcher.should_receive(:package_affected_by_push_event).explicitly
+                                .and_return(@pkg)
 
                         flexmock(cli.bb).should_receive(:build_mainline_push_event)
                                         .with(@push_event).once
@@ -245,7 +303,6 @@ module Autoproj
                         cli.handle_push_event(@push_event, mainline: true)
                     end
                 end
-                # rubocop: disable Metrics/BlockLength
                 describe 'a push on a pull request branch' do
                     before do
                         @pull_request = create_pull_request(
@@ -559,3 +616,4 @@ module Autoproj
         end
     end
 end
+# rubocop: enable Metrics/ModuleLength
