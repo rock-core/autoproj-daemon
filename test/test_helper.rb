@@ -13,107 +13,132 @@ require 'rubygems/package'
 
 module Autoproj
     module Daemon
+        # Stores github models
+        class GithubStorage
+            RateLimit = Struct.new(:remaining)
+
+            attr_reader :rate_limit
+            attr_reader :pull_requests
+            attr_reader :branches
+            attr_reader :users
+            attr_reader :organization_events
+            attr_reader :user_events
+
+            def initialize
+                @rate_limit = RateLimit.new(1000)
+                @pull_requests = Hash.new { |h, k| h[k] = [] }
+                @branches = Hash.new { |h, k| h[k] = [] }
+                @users = Hash.new { |h, k| h[k] = {} }
+                @organization_events = Hash.new { |h, k| h[k] = [] }
+                @user_events = Hash.new { |h, k| h[k] = [] }
+            end
+        end
+
+        # The actual Octokit::Client API mock
+        module MockClient
+            attr_accessor :storage
+
+            def pull_requests(repo, _options = {})
+                @storage.pull_requests[repo]
+            end
+
+            def pull_request(repo, number, _options = {})
+                @storage.pull_requests[repo].find { |pr| pr['number'] == number }
+            end
+
+            def branches(repo, _options = {})
+                @storage.branches[repo]
+            end
+
+            def user(user, _options = {})
+                @storage.users[user]
+            end
+
+            def user_events(user, _options = {})
+                @storage.user_events[user]
+            end
+
+            def organization_events(organization, _options = {})
+                @storage.organization_events[organization]
+            end
+
+            def rate_limit
+                @storage.rate_limit
+            end
+
+            def rate_limit!
+                @storage.rate_limit
+            end
+        end
+
         # Helpers to ease tests
         module TestHelpers
             attr_reader :ws
-            attr_reader :installation_manifest
+
+            def setup
+                super
+                @storage = GithubStorage.new
+            end
 
             def autoproj_daemon_create_ws(**vcs)
+                @installation_manifest = nil
+                @installation_manifest_path = nil
                 @ws = ws_create
-                @installation_manifest_path =
-                    Autoproj::InstallationManifest.path_for_workspace_root(ws.root_dir)
-
-                @installation_manifest =
-                    Autoproj::InstallationManifest.new(@installation_manifest_path)
+                @entries ||= []
 
                 installation_manifest.save
                 return ws unless vcs
 
+                setup_buildconf_vcs(vcs)
+                ws
+            end
+
+            def installation_manifest
+                @installation_manifest ||=
+                    Autoproj::InstallationManifest.new(installation_manifest_path)
+            end
+
+            def installation_manifest_path
+                @installation_manifest_path ||=
+                    Autoproj::InstallationManifest.path_for_workspace_root(ws.root_dir)
+            end
+
+            def save_installation_manifest
+                File.write(installation_manifest_path, YAML.dump(@entries))
+            end
+
+            def setup_buildconf_vcs(vcs)
                 ws.manifest.vcs = Autoproj::VCSDefinition.from_raw(vcs)
                 ws.config.set 'manifest_source', vcs.dup, true
                 ws.config.save
 
                 autoproj_daemon_git_init('autoproj', dummy: false)
-                ws
             end
 
             def autoproj_daemon_mock_github_api
-                @mock_client = flexmock(Octokit::Client).new_instances
-                @mock_rate_limit = flexmock
-
-                @mock_client.should_receive(:rate_limit).and_return { @mock_rate_limit }
-                @mock_client.should_receive(:rate_limit!).and_return { @mock_rate_limit }
-                @mock_rate_limit
-                    .should_receive(:remaining)
-                    .and_return { @client_rate_limit_remaining }
-
-                @mock_client
-                    .should_receive(:pull_requests)
-                    .and_return do |repo, _options|
-                        @client_pull_requests[repo] || []
-                    end
-
-                @mock_client
-                    .should_receive(:pull_request)
-                    .and_return do |repo, number, _options|
-                        (@client_pull_requests[repo] || [])
-                            .find { |pr| pr['number'] == number }
-                    end
-
-                @mock_client
-                    .should_receive(:branches)
-                    .and_return do |repo, _options|
-                        @client_branches[repo] || []
-                    end
-
-                @mock_client
-                    .should_receive(:user)
-                    .and_return do |user|
-                        @client_users[user] || {}
-                    end
-
-                @mock_client
-                    .should_receive(:user_events)
-                    .and_return do |user|
-                        @client_user_events[user] || []
-                    end
-
-                @mock_client
-                    .should_receive(:organization_events)
-                    .and_return do |organization|
-                        @client_organization_events[organization] || []
-                    end
-
-                @client_rate_limit_remaining = 1000
-                @client_pull_requests = {}
-                @client_branches = {}
-                @client_users = {}
-                @client_organization_events = {}
-                @client_user_events = {}
+                @storage = GithubStorage.new
+                flexmock(Octokit::Client).new_instances do |i|
+                    i.extend MockClient
+                    i.storage = @storage
+                end
             end
 
-            def autoproj_daemon_run_git(*args)
-                _, err, status = Open3.capture3('git', *args)
+            def autoproj_daemon_run_git(dir, *args)
+                _, err, status = Open3.capture3('git', *args, chdir: dir)
                 raise err unless status.success?
             end
 
             def autoproj_daemon_git_init(dir, dummy: true)
                 dir = File.join(@ws.root_dir, dir)
-                FileUtils.mkdir_p dir if dummy
-
-                Dir.chdir(dir) do
-                    FileUtils.touch(File.join(dir, 'dummy')) if dummy
-
-                    autoproj_daemon_run_git('init')
-                    autoproj_daemon_run_git('remote', 'add', 'autobuild', dir)
-                    autoproj_daemon_run_git('add', '.')
-                    autoproj_daemon_run_git('commit', '-m', 'Initial commit')
-                    autoproj_daemon_run_git('push', '-f', 'autobuild', 'master')
+                if dummy
+                    FileUtils.mkdir_p dir
+                    FileUtils.touch(File.join(dir, 'dummy'))
                 end
-            end
-
-            def save_installation_manifest
-                File.write(@installation_manifest_path, YAML.dump(@entries))
+                autoproj_daemon_run_git(dir, 'init')
+                autoproj_daemon_run_git(dir, 'remote', 'add', 'autobuild', dir)
+                autoproj_daemon_run_git(dir, 'add', '.')
+                autoproj_daemon_run_git(dir, 'commit', '-m', 'Initial commit')
+                autoproj_daemon_run_git(dir, 'push', '-f', 'autobuild', 'master')
             end
 
             def autoproj_daemon_add_package(name, vcs)
@@ -132,22 +157,32 @@ module Autoproj
                     'dependencies' => []
                 }
 
-                @entries ||= []
                 @entries << entry
 
                 save_installation_manifest
                 Autoproj::InstallationManifest::Package.new(
-                    entry['name'], entry['type'], entry['vcs'], entry['srcdir'],
-                    entry['importdir'], entry['prefix'], entry['builddir'],
-                    entry['logdir'], entry['dependencies']
+                    entry['name'],
+                    entry['type'],
+                    entry['vcs'],
+                    entry['srcdir'],
+                    entry['importdir'],
+                    entry['prefix'],
+                    entry['builddir'],
+                    entry['logdir'],
+                    entry['dependencies']
                 )
             end
 
             def autoproj_daemon_define_user(user, **options)
-                options = JSON.parse(options.to_json)
-                @client_users ||= {}
-                @client_users[user] = options
-                options
+                @storage.users[user] = JSON.parse(options.to_json)
+            end
+
+            def autoproj_daemon_add_event(owner, model)
+                if @storage.users[owner]['type'] == 'Organization'
+                    @storage.organization_events[owner] << model
+                else
+                    @storage.user_events[owner] << model
+                end
             end
 
             def autoproj_daemon_add_package_set(name, vcs)
@@ -164,7 +199,6 @@ module Autoproj
                     'user_local_dir' => pkg_set.user_local_dir
                 }
 
-                @entries ||= []
                 @entries << entry
 
                 save_installation_manifest
@@ -187,17 +221,8 @@ module Autoproj
                     },
                     created_at: options[:created_at]
                 )
-                return event unless @mock_client
 
-                if @mock_client.user(event.owner)['type'] == 'Organization'
-                    @client_orgaization_events ||= {}
-                    @client_orgaization_events[event.owner] ||= []
-                    @client_orgaization_events[event.owner] << event.model
-                else
-                    @client_user_events ||= {}
-                    @client_user_events[event.owner] ||= []
-                    @client_user_events[event.owner] << event.model
-                end
+                autoproj_daemon_add_event(event.owner, event.model)
                 event
             end
 
@@ -244,17 +269,8 @@ module Autoproj
                     },
                     created_at: options[:created_at]
                 )
-                return event unless @mock_client
 
-                if @mock_client.user(pr.base_owner)['type'] == 'Organization'
-                    @client_orgaization_events ||= {}
-                    @client_orgaization_events[pr.base_owner] ||= []
-                    @client_orgaization_events[pr.base_owner] << event.model
-                else
-                    @client_user_events ||= {}
-                    @client_user_events[pr.base_owner] ||= []
-                    @client_user_events[pr.base_owner] << event.model
-                end
+                autoproj_daemon_add_event(pr.base_owner, event.model)
                 event
             end
 
@@ -287,9 +303,7 @@ module Autoproj
                     }
                 )
 
-                @client_pull_requests ||= {}
-                @client_pull_requests["#{pr.base_owner}/#{pr.base_name}"] ||= []
-                @client_pull_requests["#{pr.base_owner}/#{pr.base_name}"] << pr.model
+                @storage.pull_requests["#{pr.base_owner}/#{pr.base_name}"] << pr.model
                 pr
             end
 
@@ -302,9 +316,7 @@ module Autoproj
                     }
                 )
 
-                @client_branches ||= {}
-                @client_branches["#{branch.owner}/#{branch.name}"] ||= []
-                @client_branches["#{branch.owner}/#{branch.name}"] << branch.model
+                @storage.branches["#{branch.owner}/#{branch.name}"] << branch.model
                 branch
             end
         end
