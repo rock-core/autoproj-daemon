@@ -14,60 +14,51 @@ module Autoproj
     module CLI
         describe Daemon do # rubocop: disable Metrics/BlockLength
             attr_reader :cli
-            attr_reader :ws
+            include Autoproj::Daemon::TestHelpers
+
             before do
-                @ws = ws_create
-                @manifest = Autoproj::InstallationManifest.new(
-                    ws.installation_manifest_path
+                autoproj_daemon_create_ws(
+                    type: 'git',
+                    url: 'git@github.com:rock-core/buildconf'
                 )
-                @cli = Daemon.new(@ws)
-
-                flexmock(Autoproj::InstallationManifest)
-                    .should_receive(:from_workspace_root).and_return(@manifest)
-                flexmock(Autoproj::Daemon::GithubWatcher)
-                    .new_instances.should_receive(:watch)
-                flexmock(Autoproj::Daemon::BuildconfManager)
-                    .new_instances.should_receive(:synchronize_branches)
+                @cli = Daemon.new(ws)
             end
 
-            def define_package(name, vcs)
-                pkg = Autoproj::InstallationManifest::Package.new(
-                    name, 'Autobuild::CMake', vcs, '/src', '/src', '/prefix', '/build', []
-                )
-
-                @manifest.add_package(pkg)
-            end
-
-            def define_package_set(name, vcs)
-                pkg_set = Autoproj::InstallationManifest::PackageSet.new(
-                    name, vcs, "/.autoproj/remotes/#{name}", "/autoproj/remotes/#{name}"
-                )
-
-                @manifest.add_package_set(pkg_set)
-            end
-
+            # rubocop: disable Metrics/BlockLength
             describe '#resolve_packages' do
                 it 'returns an array of all packages and package sets' do
                     pkgs = []
-                    pkgs << define_package('foo', type: 'git',
-                                                  url: 'https://github.com/owner/foo',
-                                                  remote_branch: 'develop')
+                    pkgs << autoproj_daemon_add_package(
+                        'foo',
+                        type: 'git',
+                        url: 'https://github.com/owner/foo',
+                        remote_branch: 'develop'
+                    )
 
-                    pkgs << define_package('bar', type: 'git',
-                                                  url: 'https://github.com/owner/bar',
-                                                  remote_branch: 'master')
+                    pkgs << autoproj_daemon_add_package(
+                        'bar',
+                        type: 'git',
+                        url: 'https://github.com/owner/bar',
+                        remote_branch: 'master'
+                    )
 
-                    pkgs << define_package_set('core', type: 'git',
-                                                       url: 'https://github.com/owner/core',
-                                                       remote_branch: 'master')
+                    pkgs << autoproj_daemon_add_package_set(
+                        'core',
+                        type: 'git',
+                        url: 'https://github.com/owner/core',
+                        remote_branch: 'master'
+                    )
 
-                    pkgs << define_package_set('utils', type: 'git',
-                                                        url: 'https://github.com/owner/utils',
-                                                        remote_branch: 'master')
-
+                    pkgs << autoproj_daemon_add_package_set(
+                        'utils',
+                        type: 'git',
+                        url: 'https://github.com/owner/utils',
+                        remote_branch: 'master'
+                    )
                     assert_equal pkgs, cli.resolve_packages
                 end
             end
+            # rubocop: enable Metrics/BlockLength
 
             describe '#parse_repo_url_from_vcs' do # rubocop: disable Metrics/BlockLength
                 it 'parses an http url' do
@@ -124,47 +115,54 @@ module Autoproj
 
             describe '#packages' do # rubocop: disable Metrics/BlockLength
                 it 'ignores packages that do not have a valid vcs' do
-                    define_package('foo', type: 'git',
-                                          url: 'https://gitlab.org/owner/foo',
-                                          remote_branch: 'develop')
+                    autoproj_daemon_add_package(
+                        'foo',
+                        type: 'git',
+                        url: 'https://gitlab.org/owner/foo',
+                        remote_branch: 'develop'
+                    )
                     assert_equal 0, cli.packages.size
                 end
                 it 'ignores packages with frozen commits' do
-                    define_package('foo', type: 'git',
-                                          url: 'https://github.com/owner/foo',
-                                          branch: 'master',
-                                          tag: '1.0')
+                    autoproj_daemon_add_package(
+                        'foo',
+                        type: 'git',
+                        url: 'https://github.com/owner/foo',
+                        branch: 'master',
+                        tag: '1.0'
+                    )
 
-                    define_package('bar', type: 'git',
-                                          url: 'https://github.com/owner/bar',
-                                          branch: 'master',
-                                          commit: 'abcdef')
+                    autoproj_daemon_add_package(
+                        'bar',
+                        type: 'git',
+                        url: 'https://github.com/owner/bar',
+                        branch: 'master',
+                        commit: 'abcdef'
+                    )
 
                     assert_equal 0, cli.packages.size
                 end
                 it 'properly handles package sets' do
-                    define_package_set(
+                    autoproj_daemon_add_package_set(
                         'rock', type: 'git',
                                 url: 'https://github.com/rock-core/package_set',
                                 remote_branch: 'develop'
                     )
 
                     pkg_set = cli.packages.first
-                    assert_equal '/.autoproj/remotes/rock', pkg_set.local_dir
                     assert_equal 'rock-core', pkg_set.owner
                     assert_equal 'package_set', pkg_set.name
                     assert_equal 'rock', pkg_set.package
                     assert pkg_set.package_set?
                 end
                 it 'properly handles packages' do
-                    define_package(
+                    autoproj_daemon_add_package(
                         'tools/roby', type: 'git',
                                       url: 'https://github.com/rock-core/tools-roby',
                                       master: 'master'
                     )
 
                     pkg = cli.packages.first
-                    assert_equal '/src', pkg.local_dir
                     assert_equal 'rock-core', pkg.owner
                     assert_equal 'tools-roby', pkg.name
                     assert_equal 'tools/roby', pkg.package
@@ -173,19 +171,8 @@ module Autoproj
             end
 
             describe '#buildconf_pull_request' do # rubocop: disable Metrics/BlockLength
-                before do
-                    @buildconf_package = Autoproj::Daemon::PackageRepository.new(
-                        'main configuration',
-                        'rock-core',
-                        'buildconf',
-                        branch: 'master'
-                    )
-
-                    flexmock(cli).should_receive(:buildconf_package)
-                                 .and_return(@buildconf_package)
-                end
                 it 'returns true if the pull request base is the buildconf' do
-                    pull_request = create_pull_request(
+                    pull_request = autoproj_daemon_add_pull_request(
                         base_owner: 'rock-core',
                         base_name: 'buildconf',
                         base_branch: 'master',
@@ -200,7 +187,7 @@ module Autoproj
                     assert cli.buildconf_pull_request?(pull_request)
                 end
                 it 'returns false if the pull request base is NOT the buildconf' do
-                    pull_request = create_pull_request(
+                    pull_request = autoproj_daemon_add_pull_request(
                         base_owner: 'rock-core',
                         base_name: 'drivers-iodrivers_base',
                         base_branch: 'master',
@@ -218,31 +205,27 @@ module Autoproj
 
             describe '#handle_push_event' do # rubocop: disable Metrics/BlockLength
                 before do
-                    @push_event = create_push_event(owner: 'rock-core',
-                                                    name: 'drivers-iodrivers_base',
-                                                    branch: 'master',
-                                                    head_sha: 'ghijklm',
-                                                    created_at: Time.now)
+                    ws.config.daemon_api_key = 'foobar'
+                    @push_event = autoproj_daemon_add_push_event(
+                        owner: 'rock-core',
+                        name: 'drivers-iodrivers_base',
+                        branch: 'master',
+                        head_sha: 'e16c2ea3771547025d3172e04fef76063d9ad127',
+                        created_at: Time.now
+                    )
                 end
+
                 # rubocop: disable Metrics/BlockLength
                 describe 'a push on a mainline branch' do
-                    before do
-                        @push_event = create_push_event(
+                    it 'clears cache if it is a buidconf push' do
+                        push_event = autoproj_daemon_add_push_event(
                             owner: 'rock-core',
                             name: 'buildconf',
                             branch: 'master',
-                            head_sha: 'efghij',
+                            head_sha: 'e16c2ea3771547025d3172e04fef76063d9ad127',
                             created_at: Time.now
                         )
-
-                        @buildconf_package = Autoproj::Daemon::PackageRepository.new(
-                            'main configuration',
-                            'rock-core',
-                            'buildconf',
-                            branch: 'master'
-                        )
-
-                        @pull_request = create_pull_request(
+                        pull_request = autoproj_daemon_create_pull_request(
                             base_owner: 'rock-core',
                             base_name: 'drivers-iodrivers_base',
                             base_branch: 'master',
@@ -253,59 +236,38 @@ module Autoproj
                             number: 1
                         )
 
-                        @overrides = [
-                            {
-                                'drivers-iodrivers_base' => {
-                                    'remote_branch' => 'feature'
-                                }
-                            }
-                        ]
-
-                        @watcher = flexmock(Autoproj::Daemon::GithubWatcher)
-                        flexmock(cli).should_receive(:watcher).and_return(@watcher)
-
-                        @pkg = Autoproj::Daemon::PackageRepository.new(
-                            'drivers/iodrivers_base',
-                            'rock-core',
-                            'drivers-iodrivers_base',
-                            branch: 'master'
-                        )
-
-                        flexmock(@buildconf_package).should_receive(:head_sha)
-                                                    .and_return('abcdef')
-
-                        flexmock(cli).should_receive(:buildconf_package)
-                                     .and_return(@buildconf_package)
-                    end
-
-                    it 'clears cache if it is a buidconf push' do
                         flexmock(cli.bb).should_receive(:build_mainline_push_event)
                         flexmock(cli).should_receive(:restart_and_update).once.ordered
-                        @watcher.should_receive(:package_affected_by_push_event).explicitly
-                                .and_return(@buildconf_package)
 
-                        cli.cache.add(@pull_request, @overrides)
+                        cli.prepare
+                        cli.cache.add(pull_request, [])
                         cli.cache.dump
                         assert_equal 1, cli.cache.reload.pull_requests.size
 
-                        cli.handle_push_event(@push_event, mainline: true)
+                        cli.handle_push_event(push_event, mainline: true)
                         assert_equal 0, cli.cache.reload.pull_requests.size
                     end
-
                     it 'triggers build, restarts daemon and updates the workspace' do
-                        flexmock(@pkg).should_receive(:head_sha).and_return('abcdef')
-                        @watcher.should_receive(:package_affected_by_push_event).explicitly
-                                .and_return(@pkg)
+                        autoproj_daemon_add_package(
+                            'drivers/iodrivers_base',
+                            type: 'git',
+                            url: 'git@github.com/rock-core/drivers-iodrivers_base',
+                            branch: 'master'
+                        )
 
                         flexmock(cli.bb).should_receive(:build_mainline_push_event)
                                         .with(@push_event).once
                         flexmock(cli).should_receive(:restart_and_update).once.ordered
+
+                        cli.prepare
                         cli.handle_push_event(@push_event, mainline: true)
                     end
                 end
+
                 describe 'a push on a pull request branch' do
                     before do
-                        @pull_request = create_pull_request(
+                        autoproj_daemon_mock_github_api
+                        @pull_request = autoproj_daemon_add_pull_request(
                             base_owner: 'rock-core',
                             base_name: 'drivers-iodrivers_base',
                             base_branch: 'master',
@@ -317,32 +279,31 @@ module Autoproj
                         )
                         @overrides = [
                             {
-                                'drivers-iodrivers_base' => {
-                                    'remote_branch' => 'feature'
+                                'drivers/iodrivers_base' => {
+                                    'remote_branch' => 'refs/pull/1/merge'
                                 }
                             }
                         ]
-                        @buildconf_manager = flexmock
-                        @buildconf_package = Autoproj::Daemon::PackageRepository.new(
-                            'main configuration',
-                            'rock-core',
-                            'buildconf',
+                        autoproj_daemon_add_package(
+                            'drivers/iodrivers_base',
+                            type: 'git',
+                            url: 'https://github.com/rock-core/drivers-iodrivers_base',
                             branch: 'master'
                         )
 
-                        flexmock(cli).should_receive(:buildconf_package)
-                                     .and_return(@buildconf_package)
-                        flexmock(cli).should_receive(:buildconf_manager)
-                                     .and_return(@buildconf_manager)
+                        @cli = Daemon.new(ws)
+
+                        ws.config.daemon_api_key = 'foobar'
+                        cli.prepare
                     end
                     it 'is ignored if the PR is on the buildconf' do
-                        event = create_push_event(
+                        event = autoproj_daemon_add_push_event(
                             owner: 'rock-core',
                             name: 'buildconf',
                             branch: 'feature',
                             created_at: Time.now
                         )
-                        pr = create_pull_request(
+                        pr = autoproj_daemon_add_pull_request(
                             base_owner: 'rock-core',
                             base_name: 'buildconf',
                             base_branch: 'master',
@@ -352,7 +313,7 @@ module Autoproj
                             head_sha: 'abcdef',
                             number: 1
                         )
-                        pr_cached = create_pull_request(
+                        pr_cached = autoproj_daemon_add_pull_request(
                             base_owner: 'rock-core',
                             base_name: 'buildconf',
                             base_branch: 'master',
@@ -364,42 +325,46 @@ module Autoproj
                             number: 1
                         )
                         cli.cache.add(pr_cached, [])
-                        @buildconf_manager.should_receive(:overrides_for_pull_request)
-                                          .with(pr).and_return([])
 
-                        @buildconf_manager.should_receive(:commit_and_push_overrides)
-                                          .never
+                        flexmock(cli.bb).should_receive(:build).never
+                        flexmock(cli.buildconf_manager)
+                            .should_receive(:commit_and_push_overrides).never
 
-                        flexmock(cli.bb).should_receive(:build).with(any).never
-                        cli.handle_push_event(event, mainline: false,
-                                                     pull_request: pr)
+                        cli.handle_push_event(
+                            event,
+                            mainline: false,
+                            pull_request: pr
+                        )
                     end
                     it 'does not update buildconf branch if PR did not change' do
                         cli.cache.add(@pull_request, @overrides)
-                        @buildconf_manager.should_receive(:overrides_for_pull_request)
-                                          .with(@pull_request).and_return(@overrides)
 
-                        @buildconf_manager.should_receive(:commit_and_push_overrides)
-                                          .never
+                        flexmock(cli.bb).should_receive(:build).never
+                        flexmock(cli.buildconf_manager)
+                            .should_receive(:commit_and_push_overrides).never
 
-                        flexmock(cli.bb).should_receive(:build).with(any).never
-                        cli.handle_push_event(@push_event, mainline: false,
-                                                           pull_request: @pull_request)
+                        cli.handle_push_event(
+                            @push_event,
+                            mainline: false,
+                            pull_request: @pull_request
+                        )
                     end
                     it 'updates buildconf branch and cache if PR changed' do
-                        cli.cache.add(@pull_request, @overrides)
-                        @buildconf_manager.should_receive(:overrides_for_pull_request)
-                                          .with(@pull_request).and_return([])
+                        cli.cache.add(@pull_request, [])
 
-                        @buildconf_manager.should_receive(:commit_and_push_overrides).once
+                        flexmock(cli.buildconf_manager)
+                            .should_receive(:commit_and_push_overrides).once
 
-                        flexmock(cli.bb).should_receive(:build_pull_request)
-                                        .with(@pull_request).once
+                        flexmock(cli.bb)
+                            .should_receive(:build_pull_request).with(@pull_request)
+                            .once
 
-                        cli.handle_push_event(@push_event, mainline: false,
-                                                           pull_request: @pull_request)
-
-                        refute cli.cache.changed?(@pull_request, [])
+                        cli.handle_push_event(
+                            @push_event,
+                            mainline: false,
+                            pull_request: @pull_request
+                        )
+                        refute cli.cache.changed?(@pull_request, @overrides)
                     end
                 end
                 # rubocop: enable Metrics/BlockLength
@@ -408,7 +373,7 @@ module Autoproj
             # rubocop: disable Metrics/BlockLength
             describe '#handle_pull_request_event' do
                 before do
-                    @pull_request = create_pull_request(
+                    @pull_request = autoproj_daemon_add_pull_request(
                         base_owner: 'rock-core',
                         base_name: 'drivers-iodrivers_base',
                         base_branch: 'master',
@@ -420,7 +385,7 @@ module Autoproj
                         number: 1
                     )
 
-                    @pull_request_event = create_pull_request_event(
+                    @pull_request_event = autoproj_daemon_add_pull_request_event(
                         owner: 'rock-core',
                         name: 'drivers-iodrivers_base',
                         branch: 'master',
@@ -428,62 +393,68 @@ module Autoproj
                         created_at: Time.now
                     )
 
-                    @buildconf_package = Autoproj::Daemon::PackageRepository.new(
-                        'main configuration',
-                        'rock-core',
-                        'buildconf',
+                    autoproj_daemon_add_package(
+                        'drivers/iodrivers_base',
+                        type: 'git',
+                        url: 'https://github.com/rock-core/drivers-iodrivers_base',
                         branch: 'master'
                     )
 
-                    @buildconf_manager = flexmock
-                    flexmock(cli).should_receive(:buildconf_package)
-                                 .and_return(@buildconf_package)
-                    flexmock(cli).should_receive(:buildconf_manager)
-                                 .and_return(@buildconf_manager)
+                    @overrides = [
+                        {
+                            'drivers/iodrivers_base' => {
+                                'remote_branch' => 'refs/pull/1/merge'
+                            }
+                        }
+                    ]
 
-                    @buildconf_manager.should_receive(:overrides_for_pull_request)
-                                      .with(@pull_request).and_return([])
+                    @cli = Daemon.new(ws)
+
+                    ws.config.daemon_api_key = 'foobar'
+                    cli.prepare
                 end
+
                 describe 'a PR is opened' do
                     it 'is ignored if it is to the buildconf' do
-                        event = create_pull_request_event(
+                        event = autoproj_daemon_add_pull_request_event(
                             base_owner: 'rock-core',
                             base_name: 'buildconf',
                             base_branch: 'master',
                             created_at: Time.now,
                             state: 'open'
                         )
-
                         flexmock(cli.bb).should_receive(:build).with(any).never
                         cli.handle_pull_request_event(event)
                     end
                     it 'does not update buildconf branch if the PR did not change' do
-                        cli.cache.add(@pull_request, [])
-                        @buildconf_manager.should_receive(:commit_and_push_overrides)
-                                          .never
+                        cli.cache.add(@pull_request, @overrides)
+
+                        flexmock(cli.buildconf_manager)
+                            .should_receive(:commit_and_push_overrides)
+                            .never
 
                         cli.handle_pull_request_event(@pull_request_event)
                     end
                     it 'updates buildconf branch and cache if the PR changed' do
-                        cli.cache.add(
-                            @pull_request,
-                            [{ 'package' => { 'remote_branch' => 'something' } }]
-                        )
+                        cli.cache.add(@pull_request, [])
 
                         flexmock(cli.bb).should_receive(:build_pull_request)
                                         .with(@pull_request).once
 
-                        @buildconf_manager.should_receive(:commit_and_push_overrides).once
+                        flexmock(cli.buildconf_manager)
+                            .should_receive(:commit_and_push_overrides).once
+
                         cli.handle_pull_request_event(@pull_request_event)
-                        refute cli.cache.changed?(@pull_request, [])
+                        refute cli.cache.changed?(@pull_request, @overrides)
                     end
                 end
+
                 describe 'a PR is closed' do
                     before do
                         @model = @pull_request.instance_variable_get(:@model)
                         @model['state'] = 'closed'
 
-                        @pull_request_event = create_pull_request_event(
+                        @pull_request_event = autoproj_daemon_add_pull_request_event(
                             owner: 'rock-core',
                             name: 'drivers-iodrivers_base',
                             branch: 'master',
@@ -492,7 +463,7 @@ module Autoproj
                         )
                     end
                     it 'is ignored if it is to the buildconf' do
-                        event = create_pull_request_event(
+                        event = autoproj_daemon_add_pull_request_event(
                             base_owner: 'rock-core',
                             base_name: 'buildconf',
                             base_branch: 'master',
@@ -502,6 +473,7 @@ module Autoproj
 
                         flexmock(cli).should_receive('client.delete_branch_by_name')
                                      .with(any).never
+
                         cli.handle_pull_request_event(event)
                     end
                     it 'handles errors if buildconf branch does not exist' do
@@ -514,16 +486,16 @@ module Autoproj
                         cli.handle_pull_request_event(@pull_request_event)
                     end
                     it 'deletes branch and removes PR from cache' do
-                        cli.cache.add(@pull_request, [])
+                        cli.cache.add(@pull_request, @overrides)
 
                         flexmock(cli).should_receive('client.delete_branch_by_name')
                                      .with('rock-core', 'buildconf',
                                            'autoproj/rock-core/drivers-iodrivers_base/'\
                                            'pulls/1')
 
-                        refute cli.cache.changed?(@pull_request, [])
+                        refute cli.cache.changed?(@pull_request, @overrides)
                         cli.handle_pull_request_event(@pull_request_event)
-                        assert cli.cache.changed?(@pull_request, [])
+                        assert cli.cache.changed?(@pull_request, @overrides)
                     end
                 end
             end

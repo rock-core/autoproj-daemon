@@ -13,6 +13,9 @@ module Autoproj
                 # @return [String]
                 attr_reader :name
 
+                # @return [Hash]
+                attr_reader :model
+
                 def initialize(owner, name, model)
                     @owner = owner
                     @name = name
@@ -27,6 +30,11 @@ module Autoproj
                 # @return [String]
                 def sha
                     @model['commit']['sha']
+                end
+
+                # @return [Boolean]
+                def ==(other)
+                    model == other.model
                 end
             end
         end

@@ -1,12 +1,13 @@
 # frozen_string_literal: true
 
 require 'autoproj/daemon/package_repository'
+require 'test_helper'
 
 # Autoproj's main module
 module Autoproj
     # Daemon main module
     module Daemon
-        describe PackageRepository do # rubocop: disable Metrics/BlockLength
+        describe PackageRepository do
             attr_reader :package
             attr_reader :ws
             before do
@@ -16,7 +17,8 @@ module Autoproj
                     'rock-drivers',
                     'drivers-iodrivers_base',
                     { type: 'none' },
-                    ws: ws)
+                    ws: ws
+                )
             end
 
             describe '#autobuild' do

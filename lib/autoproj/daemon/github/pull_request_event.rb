@@ -8,6 +8,9 @@ module Autoproj
         module Github
             # A PullRequestEvent model representation
             class PullRequestEvent
+                # @return [Hash]
+                attr_reader :model
+
                 def initialize(model)
                     @model = JSON.parse(model.to_json)
                 end

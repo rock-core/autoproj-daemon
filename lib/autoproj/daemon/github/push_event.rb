@@ -7,6 +7,9 @@ module Autoproj
         module Github
             # A PushEvent model representation
             class PushEvent
+                # @return [Hash]
+                attr_reader :model
+
                 def initialize(model)
                     @model = JSON.parse(model.to_json)
                 end

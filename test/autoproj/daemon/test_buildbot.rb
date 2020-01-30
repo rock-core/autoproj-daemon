@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require 'test_helper'
 require 'autoproj/daemon/buildbot'
 
 # Autoproj's main module
@@ -9,6 +10,8 @@ module Autoproj
         describe Buildbot do # rubocop: disable Metrics/BlockLength
             attr_reader :bb
             attr_reader :ws
+
+            include Autoproj::Daemon::TestHelpers
             before do
                 @ws = ws_create
                 @bb = Buildbot.new(ws)
@@ -103,7 +106,7 @@ module Autoproj
                         revision: 'abcdef'
                     ).once
 
-                    pr = create_pull_request(
+                    pr = autoproj_daemon_add_pull_request(
                         base_owner: 'tidewise',
                         base_name: 'drivers-gps_ublox',
                         number: 22,
@@ -126,7 +129,7 @@ module Autoproj
                         revision: 'abcdef'
                     ).once
 
-                    event = create_push_event(
+                    event = autoproj_daemon_add_push_event(
                         owner: 'tidewise',
                         name: 'drivers-gps_ublox',
                         branch: 'feature',
