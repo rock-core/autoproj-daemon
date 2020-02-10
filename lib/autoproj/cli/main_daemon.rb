@@ -20,6 +20,7 @@ module Autoproj
                     builder.use Faraday::HttpCache, serializer: Marshal,
                                                     shared_cache: false
 
+                    builder.use Octokit::Middleware::FollowRedirects
                     builder.use Octokit::Response::RaiseError
                     builder.adapter Faraday.default_adapter
                 end
