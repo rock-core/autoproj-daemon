@@ -105,6 +105,15 @@ module Autoproj
                 events.reject { |event| stale?(event) }
             end
 
+            def push_event_valid?(push_event)
+                branches = @client.branches(
+                    push_event.owner,
+                    push_event.name
+                )
+                branch_state = branches.find { |b| b.branch_name == push_event.branch }
+                return branch_state&.sha == push_event.head_sha
+            end
+
             # @param [Github::PushEvent] push_event
             # @return [void]
             def call_push_hooks(push_event, **options)
@@ -161,6 +170,16 @@ module Autoproj
 
                 push_events.select! { |e| e.owner == owner }
                 pull_request_events.select! { |e| e.pull_request.base_owner == owner }
+
+                push_events.select! do |e|
+                    unless push_event_valid?(e)
+                        Autoproj.message "filtered out invalid push event "\
+                            "#{e.owner}/#{e.name} #{e.branch} #{e.head_sha}"
+                        next
+                    end
+
+                    true
+                end
 
                 handle_push_events(push_events)
                 handle_pull_request_events(pull_request_events)

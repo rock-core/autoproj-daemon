@@ -519,12 +519,14 @@ module Autoproj
                         owner: 'rock-core',
                         name: 'drivers-gps_ublox',
                         branch: 'master',
+                        head_sha: '1234',
                         created_at: Time.utc(2019, 'sep', 22, 23, 53, 35)
                     )
                     @events << autoproj_daemon_add_push_event(
                         owner: 'rock-core',
                         name: 'drivers-gps_ublox',
                         branch: 'master',
+                        head_sha: 'abcd',
                         created_at: Time.utc(2019, 'sep', 22, 23, 53, 40)
                     )
                     @events << autoproj_daemon_add_pull_request_event(
@@ -542,16 +544,20 @@ module Autoproj
                         created_at: Time.utc(2019, 'sep', 22, 23, 53, 40)
                     )
 
+                    autoproj_daemon_add_branch(
+                        'rock-core', 'drivers-gps_ublox',
+                        branch_name: 'master', sha: 'abcd'
+                    )
                     add_package('drivers/gps_ublox', 'rock-core', 'drivers-gps_ublox')
                     @events[2..3].each { |event| @cache.add(event.pull_request, []) }
 
                     flexmock(watcher)
                         .should_receive(:handle_push_events)
-                        .with(@events[0..1]).once
+                        .with(@events[1, 1]).once
 
                     flexmock(watcher)
                         .should_receive(:handle_pull_request_events)
-                        .with(@events[2..3]).once
+                        .with(@events[2, 2]).once
 
                     watcher.handle_owner_events('rock-core', @events)
                 end
@@ -582,6 +588,28 @@ module Autoproj
                         .with([]).once
 
                     watcher.handle_owner_events('tidewise', @events)
+                end
+                it 'ignores events on whose SHA does not match the state of '\
+                   'the current branch' do
+                    @events << autoproj_daemon_add_push_event(
+                        owner: 'rock-core',
+                        name: 'drivers-gps_ublox',
+                        branch: 'master',
+                        head_sha: '1234',
+                        created_at: Time.utc(2019, 'sep', 22, 23, 53, 35)
+                    )
+                    autoproj_daemon_add_branch(
+                        'rock-core', 'drivers-gps_ublox',
+                        branch_name: 'master', sha: '3456'
+                    )
+
+                    add_package('drivers/gps_ublox', 'rock-core', 'drivers-gps_ublox')
+
+                    flexmock(watcher)
+                        .should_receive(:handle_push_events)
+                        .with([]).once
+
+                    watcher.handle_owner_events('rock-core', @events)
                 end
                 # rubocop: enable Metrics/BlockLength
             end
