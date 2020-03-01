@@ -105,13 +105,12 @@ module Autoproj
                 events.reject { |event| stale?(event) }
             end
 
-            def push_event_valid?(push_event)
-                branches = @client.branches(
-                    push_event.owner,
-                    push_event.name
+            def branch_current_head(owner, name, branch, memo: {})
+                branches = (
+                    memo[[owner, name]] ||= @client.branches(owner, name)
                 )
-                branch_state = branches.find { |b| b.branch_name == push_event.branch }
-                return branch_state&.sha == push_event.head_sha
+                branch_state = branches.find { |b| b.branch_name == branch }
+                branch_state&.sha
             end
 
             # @param [Github::PushEvent] push_event
@@ -168,20 +167,21 @@ module Autoproj
                 push_events, pull_request_events =
                     events.partition { |event| event.kind_of? Github::PushEvent }
 
-                push_events.select! { |e| e.owner == owner }
                 pull_request_events.select! { |e| e.pull_request.base_owner == owner }
 
-                push_events.select! do |e|
-                    unless push_event_valid?(e)
-                        Autoproj.message "filtered out invalid push event "\
-                            "#{e.owner}/#{e.name} #{e.branch} #{e.head_sha}"
-                        next
-                    end
+                push_events = push_events
+                              .select { |e| e.owner == owner }
+                              .sort_by(&:created_at).reverse
+                              .uniq { |e| [e.name, e.branch] }
 
-                    true
+                memo = {}
+                push_events = push_events.map do |e|
+                    e = e.dup
+                    e.head_sha = branch_current_head(e.owner, e.name, e.branch, memo: {})
+                    e if e.head_sha
                 end
 
-                handle_push_events(push_events)
+                handle_push_events(push_events.compact)
                 handle_pull_request_events(pull_request_events)
             end
 

@@ -589,15 +589,15 @@ module Autoproj
 
                     watcher.handle_owner_events('tidewise', @events)
                 end
-                it 'ignores events on whose SHA does not match the state of '\
-                   'the current branch' do
-                    @events << autoproj_daemon_add_push_event(
+                it 'updates the event\'s SHA using the current branch state' do
+                    ev = autoproj_daemon_add_push_event(
                         owner: 'rock-core',
                         name: 'drivers-gps_ublox',
                         branch: 'master',
                         head_sha: '1234',
                         created_at: Time.utc(2019, 'sep', 22, 23, 53, 35)
                     )
+                    @events << ev
                     autoproj_daemon_add_branch(
                         'rock-core', 'drivers-gps_ublox',
                         branch_name: 'master', sha: '3456'
@@ -605,9 +605,11 @@ module Autoproj
 
                     add_package('drivers/gps_ublox', 'rock-core', 'drivers-gps_ublox')
 
+                    expected_ev = ev.dup
+                    expected_ev.head_sha = '3456'
                     flexmock(watcher)
                         .should_receive(:handle_push_events)
-                        .with([]).once
+                        .with([expected_ev]).once
 
                     watcher.handle_owner_events('rock-core', @events)
                 end
