@@ -113,6 +113,13 @@ module Autoproj
                 branch_state&.sha
             end
 
+            def pull_request_currently_open?(owner, name, number, memo: {})
+                cache_key = [owner, name, number]
+                all_prs = (memo[cache_key] ||= client.pull_requests(owner, name))
+                matching_pr = all_prs.find { |p| p.number == number }
+                matching_pr&.open?
+            end
+
             # @param [Github::PushEvent] push_event
             # @return [void]
             def call_push_hooks(push_event, **options)
@@ -167,40 +174,60 @@ module Autoproj
                 push_events, pull_request_events =
                     events.partition { |event| event.kind_of? Github::PushEvent }
 
+                push_events.select! { |e| e.owner == owner }
                 pull_request_events.select! { |e| e.pull_request.base_owner == owner }
 
-                push_events = push_events
-                              .select { |e| e.owner == owner }
-                              .sort_by(&:created_at).reverse
-                              .uniq { |e| [e.name, e.branch] }
-
-                memo = {}
-                push_events = push_events.map do |e|
-                    e = e.dup
-                    e.head_sha = branch_current_head(e.owner, e.name, e.branch, memo: {})
-                    e if e.head_sha
-                end
-
-                handle_push_events(push_events.compact)
+                handle_push_events(push_events)
                 handle_pull_request_events(pull_request_events)
             end
 
+            # Compute the actual push events and dispatch them
+            #
+            # Instead of passing along the push events, we use them as hints
+            # that something happened on the branch we watch. We then pass along
+            # PushEvent objects where the SHA is the actual SHA from the branch,
+            # as reported by the API. This works arounds missing/wrong events
+            #
+            # This method does the generation of these 'events' based on the
+            # push events received from GitHub, and dispatches them
+            #
             # @param [Array<Github::PushEvent>]
             # @return [void]
             def handle_push_events(events)
+                memo = {}
                 events = events.group_by(&:name)
                 events.each_value do |repo_events|
                     repo_events = repo_events.group_by(&:branch)
                     repo_events.each_value do |branch_events|
                         latest_event = branch_events.max_by(&:created_at)
-                        dispatch_push_event(latest_event)
+                        sha = branch_current_head(
+                            latest_event.owner, latest_event.name, latest_event.branch,
+                            memo: memo
+                        )
+                        next unless sha
+
+                        event = latest_event.dup
+                        event.head_sha = sha
+                        dispatch_push_event(event)
                     end
                 end
             end
 
+            # Compute the actual pull request events and dispatch them
+            #
+            # Instead of passing along the pull request events, we use them as
+            # hints that something happened on the PRs we watch. We then pass
+            # along PushEvent objects where the SHA is the actual SHA from the
+            # branch, as reported by the API. This works around missing/wrong
+            # events
+            #
+            # This method does the generation of these 'events' based on the
+            # pull request events received from GitHub, and dispatches them
+            #
             # @param [Array<Github::PullRequestEvent>]
             # @return [void]
             def handle_pull_request_events(events)
+                memo = {}
                 events = events.group_by { |event| event.pull_request.base_name }
                 events.each_value do |repo_events|
                     repo_events =
@@ -208,10 +235,16 @@ module Autoproj
 
                     repo_events.each_value do |pull_request_events|
                         latest_event = pull_request_events.max_by(&:created_at)
-                        pull_request = latest_event.pull_request
-                        next if !pull_request.open? && !cache.cached(pull_request)
+                        pr = latest_event.pull_request
 
-                        call_pull_request_hooks(latest_event)
+                        open = pull_request_currently_open?(
+                            pr.base_owner, pr.base_name, pr.number, memo: memo
+                        )
+                        next if !open && !cache.cached(pr)
+
+                        event = latest_event.dup
+                        event.pull_request.open = open
+                        call_pull_request_hooks(event)
                     end
                 end
             end

@@ -18,6 +18,10 @@ module Autoproj
                     @model['state'] == 'open'
                 end
 
+                def open=(flag)
+                    @model['state'] = flag ? 'open' : 'closed'
+                end
+
                 # @return [Integer]
                 def number
                     @model['number']
@@ -81,7 +85,7 @@ module Autoproj
                 end
 
                 def ==(other)
-                    model == other.model
+                    @model == other.model
                 end
             end
         end

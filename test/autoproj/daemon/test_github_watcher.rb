@@ -534,6 +534,7 @@ module Autoproj
                         base_name: 'drivers-gps_ublox',
                         base_branch: 'master',
                         state: 'open',
+                        number: 1,
                         created_at: Time.utc(2019, 'sep', 22, 23, 53, 35)
                     )
                     @events << autoproj_daemon_add_pull_request_event(
@@ -541,6 +542,7 @@ module Autoproj
                         base_name: 'drivers-gps_ublox',
                         base_branch: 'master',
                         state: 'open',
+                        number: 2,
                         created_at: Time.utc(2019, 'sep', 22, 23, 53, 40)
                     )
 
@@ -548,16 +550,25 @@ module Autoproj
                         'rock-core', 'drivers-gps_ublox',
                         branch_name: 'master', sha: 'abcd'
                     )
+                    autoproj_daemon_add_pull_request(
+                        base_owner: 'rock-core', base_name: 'drivers-gps_ublox',
+                        base_branch: 'master', number: 1, sha: 'abcd'
+                    )
+                    autoproj_daemon_add_pull_request(
+                        base_owner: 'rock-core', base_name: 'drivers-gps_ublox',
+                        base_branch: 'master', number: 2, sha: 'abcd'
+                    )
                     add_package('drivers/gps_ublox', 'rock-core', 'drivers-gps_ublox')
                     @events[2..3].each { |event| @cache.add(event.pull_request, []) }
 
                     flexmock(watcher)
-                        .should_receive(:handle_push_events)
-                        .with(@events[1, 1]).once
 
-                    flexmock(watcher)
-                        .should_receive(:handle_pull_request_events)
-                        .with(@events[2, 2]).once
+                    watcher.should_receive(:dispatch_push_event)
+                           .with(@events[1]).once
+                    watcher.should_receive(:call_pull_request_hooks)
+                           .with(@events[2]).once
+                    watcher.should_receive(:call_pull_request_hooks)
+                           .with(@events[3]).once
 
                     watcher.handle_owner_events('rock-core', @events)
                 end
@@ -621,7 +632,7 @@ module Autoproj
                     @events = []
                 end
                 # rubocop: disable Metrics/BlockLength
-                it 'handles the latest push for each repo and branch' do
+                it 'synthetizes push events containing the latest HEAD' do
                     @events << autoproj_daemon_add_push_event(
                         owner: 'rock-core',
                         name: 'drivers-gps_ublox',
@@ -646,12 +657,25 @@ module Autoproj
                         branch: 'master',
                         created_at: Time.utc(2019, 'sep', 22, 23, 53, 50)
                     )
-                    flexmock(watcher).should_receive(:dispatch_push_event)
-                                     .with(@events[1]).once
 
-                    flexmock(watcher).should_receive(:dispatch_push_event)
-                                     .with(@events[3]).once
+                    autoproj_daemon_add_branch(
+                        'rock-core', 'drivers-gps_base',
+                        branch_name: 'master', sha: '1234'
+                    )
+                    autoproj_daemon_add_branch(
+                        'rock-core', 'drivers-gps_ublox',
+                        branch_name: 'master', sha: 'abcd'
+                    )
+                    expected_master = @events[1].dup
+                    expected_master.head_sha = '1234'
+                    expected_base = @events[3].dup
+                    expected_base.head_sha = 'abcd'
 
+                    flexmock(watcher)
+                    watcher.should_receive(:dispatch_push_event)
+                           .with(expected_master).once
+                    watcher.should_receive(:dispatch_push_event)
+                           .with(expected_base).once
                     watcher.handle_push_events(@events)
                 end
                 # rubocop: enable Metrics/BlockLength
@@ -662,13 +686,24 @@ module Autoproj
                 before do
                     @events = []
                 end
-                it 'handles the latest event for each repo and PR' do
+                it 'synthetizes pull request event from the actual PR states' do
+                    # Register PR#2 in the cache
+                    pr2_open_event = autoproj_daemon_add_pull_request_event(
+                         base_owner: 'rock-core',
+                         base_name: 'drivers-gps_base',
+                         base_branch: 'master',
+                         number: 2,
+                         state: 'open',
+                         created_at: Time.utc(2019, 'sep', 22, 23, 53, 20)
+                    )
+                    @cache.add(pr2_open_event.pull_request, {})
+
                     @events << autoproj_daemon_add_pull_request_event(
                         base_owner: 'rock-core',
                         base_name: 'drivers-gps_ublox',
                         base_branch: 'master',
                         number: 1,
-                        state: 'closed',
+                        state: 'open',
                         created_at: Time.utc(2019, 'sep', 22, 23, 53, 35)
                     )
                     @events << autoproj_daemon_add_pull_request_event(
@@ -676,7 +711,7 @@ module Autoproj
                         base_name: 'drivers-gps_ublox',
                         base_branch: 'master',
                         number: 1,
-                        state: 'open',
+                        state: 'closed',
                         created_at: Time.utc(2019, 'sep', 22, 23, 53, 40)
                     )
                     @events << autoproj_daemon_add_pull_request_event(
@@ -696,12 +731,25 @@ module Autoproj
                         created_at: Time.utc(2019, 'sep', 22, 23, 53, 40)
                     )
 
-                    flexmock(watcher).should_receive(:call_pull_request_hooks)
-                                     .with(@events[1]).once
+                    autoproj_daemon_add_pull_request(
+                        base_owner: 'rock-core', base_name: 'drivers-gps_ublox',
+                        base_branch: 'master', number: 1, state: 'open'
+                    )
+                    autoproj_daemon_add_pull_request(
+                        base_owner: 'rock-core', base_name: 'drivers-gps_ublox',
+                        base_branch: 'master', number: 2, state: 'closed'
+                    )
 
-                    flexmock(watcher).should_receive(:call_pull_request_hooks)
-                                     .with(@events[3]).once
+                    expected_pr1 = @events[1].dup
+                    expected_pr1.pull_request.open = true
+                    expected_pr2 = @events[3].dup
+                    expected_pr2.pull_request.open = false
 
+                    flexmock(watcher)
+                    watcher.should_receive(:call_pull_request_hooks)
+                           .with(expected_pr1).once
+                    watcher.should_receive(:call_pull_request_hooks)
+                           .with(expected_pr2).once
                     watcher.handle_pull_request_events(@events)
                 end
                 it 'handles close events of cached PRs' do
