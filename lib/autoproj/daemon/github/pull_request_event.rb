@@ -22,6 +22,15 @@ module Autoproj
                 def created_at
                     Time.parse(@model['created_at'])
                 end
+
+                def initialize_copy(_)
+                    super
+                    @model = @model.dup
+                end
+
+                def ==(other)
+                    @model == other.model
+                end
             end
         end
     end

@@ -261,7 +261,8 @@ module Autoproj
                     base_owner: options[:base_owner],
                     base_name: options[:base_name],
                     base_branch: options[:base_branch],
-                    state: options[:state]
+                    state: options[:state],
+                    number: options[:number]
                 )
                 event = Autoproj::Daemon::Github::PullRequestEvent.new(
                     payload: {
