@@ -24,6 +24,32 @@ module Autoproj
                 @cli = Daemon.new(ws)
             end
 
+            it 'sets the project to an empty string if none is given' do
+                assert_equal '', @cli.bb.project
+                ws.config.set 'daemon_api_key', 'something', true
+                @cli.prepare
+                assert_equal '', @cli.bb.project
+            end
+
+            it 'computes the buildbot project name from the configuration' do
+                ws.config.set 'daemon_project', 'somename', true
+                cli = Daemon.new(ws, load_config: false)
+                assert_equal 'somename', cli.bb.project
+                ws.config.set 'daemon_api_key', 'something', true
+                cli.prepare
+                assert_equal 'somename', cli.buildconf_manager.bb.project
+            end
+
+            it 'appends the manifest name if it is not mainline' do
+                ws.config.set 'daemon_project', 'somename', true
+                ws.config.set 'manifest_name', 'manifest.subsystem'
+                cli = Daemon.new(ws, load_config: false)
+                assert_equal 'somename_subsystem', cli.bb.project
+                ws.config.set 'daemon_api_key', 'something', true
+                cli.prepare
+                assert_equal 'somename_subsystem', cli.buildconf_manager.bb.project
+            end
+
             # rubocop: disable Metrics/BlockLength
             describe '#resolve_packages' do
                 it 'returns an array of all packages and package sets' do

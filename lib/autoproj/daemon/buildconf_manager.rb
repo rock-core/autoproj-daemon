@@ -49,8 +49,8 @@ module Autoproj
             #     with all package repositories to watch
             # @param [Autoproj::Daemon::PullRequestCache] cache Pull request cache
             # @param [Autoproj::Workspace] workspace Current workspace
-            def initialize(buildconf, client, packages, cache, workspace)
-                @bb = Buildbot.new(workspace)
+            def initialize(buildconf, client, packages, cache, workspace, project: nil)
+                @bb = Buildbot.new(workspace, project: project)
                 @buildconf = buildconf
                 @client = client
                 @packages = packages

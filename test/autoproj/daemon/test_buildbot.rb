@@ -14,42 +14,16 @@ module Autoproj
             include Autoproj::Daemon::TestHelpers
             before do
                 @ws = ws_create
-                @bb = Buildbot.new(ws)
-            end
-
-            describe '#body' do
-                it 'adds branch parameter if unset' do
-                    expected = {
-                        method: 'force',
-                        jsonrpc: '2.0',
-                        id: 1,
-                        params: {
-                            branch: 'master'
-                        }
-                    }
-                    assert_equal expected, bb.body
-                end
-                it 'keeps branch parameter if set' do
-                    expected = {
-                        method: 'force',
-                        jsonrpc: '2.0',
-                        id: 1,
-                        params: {
-                            branch: 'feature'
-                        }
-                    }
-                    assert_equal expected, bb.body(branch: 'feature')
-                end
+                @bb = Buildbot.new(ws, project: 'wetpaint')
             end
 
             describe '#uri' do
                 it 'formats buildbot url endpoint' do
                     ws.config.daemon_buildbot_host = 'bb-master'
                     ws.config.daemon_buildbot_port = 8666
-                    ws.config.daemon_buildbot_scheduler = 'force-build'
 
                     assert_equal URI.parse(
-                        'http://bb-master:8666/api/v2/forceschedulers/force-build'
+                        'http://bb-master:8666/change_hook/base'
                     ), bb.uri
                 end
             end
@@ -58,37 +32,22 @@ module Autoproj
                 it 'returns true if command is accepted' do
                     ws.config.daemon_buildbot_host = 'bb-master'
                     ws.config.daemon_buildbot_port = 8666
-                    ws.config.daemon_buildbot_scheduler = 'force-build'
 
                     response = flexmock
-                    response.should_receive(:body).and_return({
-                        result: {},
-                        error: nil,
-                        id: 1
-                    }.to_json)
+                    response.should_receive(code: '200')
 
                     flexmock(Net::HTTP)
                         .new_instances
                         .should_receive('request').and_return(response)
 
-                    flexmock(bb).should_receive(:body).with(branch: 'feature')
-                                .at_least.once.pass_thru
-                    assert bb.build(branch: 'feature')
+                    assert bb.build
                 end
                 it 'returns false if command fails' do
                     ws.config.daemon_buildbot_host = 'bb-master'
                     ws.config.daemon_buildbot_port = 8666
-                    ws.config.daemon_buildbot_scheduler = 'force-build'
 
                     response = flexmock
-                    response.should_receive(:body).and_return({
-                        result: {},
-                        error: {
-                            code: 1234,
-                            message: 'Failed'
-                        },
-                        id: 1
-                    }.to_json)
+                    response.should_receive(code: '404', body: 'some error')
 
                     flexmock(Net::HTTP)
                         .new_instances
@@ -99,11 +58,17 @@ module Autoproj
             end
             describe '#build_pull_request' do
                 it 'adds buildbot force build paramaters' do
+                    now = Time.now
                     flexmock(bb).should_receive(:build).with(
+                        author: 'contributor',
                         branch: 'autoproj/tidewise/drivers-gps_ublox/pulls/22',
-                        project: 'tidewise/drivers-gps_ublox',
-                        repository: 'https://github.com/tidewise/drivers-gps_ublox',
-                        revision: 'abcdef'
+                        category: 'pull_request',
+                        codebase: '',
+                        committer: 'contributor',
+                        repository: 'tidewise/drivers-gps_ublox',
+                        revision: 'abcdef',
+                        revlink: 'https://github.com/tidewise/drivers-gps_ublox/pull/22',
+                        when_timestamp: now.tv_sec
                     ).once
 
                     pr = autoproj_daemon_add_pull_request(
@@ -114,7 +79,8 @@ module Autoproj
                         head_owner: 'contributor',
                         head_name: 'drivers-gps_ublox_fork',
                         head_branch: 'feature',
-                        head_sha: 'abcdef'
+                        head_sha: 'abcdef',
+                        updated_at: now
                     )
 
                     bb.build_pull_request(pr)
@@ -122,18 +88,26 @@ module Autoproj
             end
             describe '#build_mainline_push_event' do
                 it 'adds buildbot force build paramaters' do
+                    now = Time.now
                     flexmock(bb).should_receive(:build).with(
+                        author: 'g-arjones',
                         branch: 'master',
-                        project: 'tidewise/drivers-gps_ublox',
-                        repository: 'https://github.com/tidewise/drivers-gps_ublox',
-                        revision: 'abcdef'
+                        category: 'push',
+                        codebase: '',
+                        committer: 'g-arjones',
+                        repository: 'tidewise/drivers-gps_ublox',
+                        revision: 'abcdef',
+                        revlink: 'https://github.com/tidewise/drivers-gps_ublox',
+                        when_timestamp: now.tv_sec
                     ).once
 
                     event = autoproj_daemon_add_push_event(
+                        author: 'g-arjones',
                         owner: 'tidewise',
                         name: 'drivers-gps_ublox',
                         branch: 'feature',
-                        head_sha: 'abcdef'
+                        head_sha: 'abcdef',
+                        created_at: now
                     )
 
                     bb.build_mainline_push_event(event)

@@ -13,6 +13,17 @@ autoproj plugin install autoproj-daemon
 
 From within an autoproj workspace
 
+The daemon will get its configuration from the workspace's configuration file.
+It requires the following keys:
+
+~~~
+daemon_project: PROJECT_NAME
+daemon_api_key: GITHUB_API_KEY
+daemon_polling_period: POLLING_PERIOD_IN_SECONDS
+daemon_buildbot_host: BUILDBOT_HOST
+daemon_buildbot_port: 8666
+~~~
+
 ## Usage
 
 ## Development

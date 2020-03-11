@@ -25,14 +25,22 @@ module Autoproj
             attr_reader :watcher
             attr_reader :ws
 
-            def initialize(workspace)
-                @bb = Autoproj::Daemon::Buildbot.new(workspace)
-                @cache = Autoproj::Daemon::PullRequestCache.load(workspace)
+            def initialize(workspace, load_config: true)
                 @ws = workspace
+                @ws.load_config if load_config
+
+                @cache = Autoproj::Daemon::PullRequestCache.load(workspace)
                 @packages = nil
-                ws.config.load if File.exist?(ws.config_file_path)
                 @update_failed = false
-                ws.load_config
+
+                manifest_name = @ws.config.get('manifest_name', 'manifest')
+                subsystem =
+                    if (m = /\.(.+)$/.match(manifest_name))
+                        m[1]
+                    end
+                project = [@ws.config.daemon_project, subsystem].compact.join('_')
+
+                @bb = Autoproj::Daemon::Buildbot.new(workspace, project: project)
             end
 
             # Loads all package definitions from the installation manifest
@@ -217,7 +225,10 @@ module Autoproj
 
                 @packages = resolve_packages.map do |pkg|
                     vcs = pkg[:vcs]
-                    next unless (match = parse_repo_url_from_vcs(vcs))
+                    unless (match = parse_repo_url_from_vcs(vcs))
+                        Autoproj.message "ignored #{pkg.name}: VCS not matching"
+                        next
+                    end
                     next if vcs[:commit] || vcs[:tag]
 
                     owner, name = match
@@ -267,19 +278,21 @@ module Autoproj
             # @return [void]
             def prepare
                 unless ws.config.daemon_api_key
-                    raise Autoproj::ConfigError, 'you must configure the '\
-                        'daemon before starting'
+                    raise Autoproj::ConfigError,
+                          'required configuration daemon_api_key not set'
                 end
                 @client = Autoproj::Daemon::Github::Client.new(
                     access_token: ws.config.daemon_api_key,
                     auto_paginate: true
                 )
+
                 @buildconf_manager = Autoproj::Daemon::BuildconfManager.new(
                     buildconf_package,
                     client,
                     packages,
                     cache,
-                    ws
+                    ws,
+                    project: @bb.project
                 )
                 @watcher = Autoproj::Daemon::GithubWatcher.new(
                     client,

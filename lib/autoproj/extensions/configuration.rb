@@ -4,6 +4,19 @@ module Autoproj
     module Extensions
         # Autoproj's main configuration scope
         module Configuration
+            # The project name
+            #
+            # Passed as-is to buildbot's change system to recognize which
+            # builder to use
+            def daemon_project
+                get('daemon_project', nil)
+            end
+
+            # Sets the project name
+            def daemon_project=(name)
+                set('daemon_project', name, true)
+            end
+
             # Sets the github api key to be used for authentication.
             # @param [String] api_key the github api key
             def daemon_api_key=(api_key)
@@ -55,20 +68,6 @@ module Autoproj
             # @return [Integer]
             def daemon_buildbot_port
                 get('daemon_buildbot_port', 8010)
-            end
-
-            # The buildbot force scheduler name
-            #
-            # @return [String]
-            def daemon_buildbot_scheduler
-                get('daemon_buildbot_scheduler', 'build-force')
-            end
-
-            # Sets the buildbot force scheduler name
-            # @param [String] scheduler Buildbot force scheduler name
-            # @return [void]
-            def daemon_buildbot_scheduler=(scheduler)
-                set('daemon_buildbot_scheduler', scheduler, true)
             end
 
             # Longest period to consider PRs and events (in days)

@@ -219,7 +219,10 @@ module Autoproj
                         head: options[:head_sha],
                         ref: "refs/heads/#{options[:branch]}"
                     },
-                    created_at: options[:created_at]
+                    actor: {
+                        login: options[:author]
+                    },
+                    created_at: options[:created_at] || Time.now
                 )
 
                 autoproj_daemon_add_event(event.owner, event.model)
