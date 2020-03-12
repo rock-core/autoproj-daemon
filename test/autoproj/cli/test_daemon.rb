@@ -24,11 +24,11 @@ module Autoproj
                 @cli = Daemon.new(ws)
             end
 
-            it 'sets the project to an empty string if none is given' do
-                assert_equal '', @cli.bb.project
+            it 'sets the project to \'daemon\' if none is given' do
+                assert_equal 'daemon', @cli.bb.project
                 ws.config.set 'daemon_api_key', 'something', true
                 @cli.prepare
-                assert_equal '', @cli.bb.project
+                assert_equal 'daemon', @cli.bb.project
             end
 
             it 'computes the buildbot project name from the configuration' do
@@ -434,7 +434,8 @@ module Autoproj
                         }
                     ]
 
-                    @cli = Daemon.new(ws)
+                    ws.config.set 'daemon_project', 'myproject', true
+                    @cli = Daemon.new(ws, load_config: false)
 
                     ws.config.daemon_api_key = 'foobar'
                     cli.prepare
@@ -505,10 +506,11 @@ module Autoproj
                     it 'handles errors if buildconf branch does not exist' do
                         flexmock(cli).should_receive('client.delete_branch_by_name')
                                      .with('rock-core', 'buildconf',
-                                           'autoproj/rock-core/'\
+                                           'autoproj/myproject/rock-core/'\
                                            'drivers-iodrivers_base/pulls/1')
                                      .and_raise(Octokit::UnprocessableEntity)
 
+                        assert_equal 'myproject', cli.project
                         cli.handle_pull_request_event(@pull_request_event)
                     end
                     it 'deletes branch and removes PR from cache' do
@@ -516,8 +518,8 @@ module Autoproj
 
                         flexmock(cli).should_receive('client.delete_branch_by_name')
                                      .with('rock-core', 'buildconf',
-                                           'autoproj/rock-core/drivers-iodrivers_base/'\
-                                           'pulls/1')
+                                           'autoproj/myproject/rock-core/'\
+                                           'drivers-iodrivers_base/pulls/1')
 
                         refute cli.cache.changed?(@pull_request, @overrides)
                         cli.handle_pull_request_event(@pull_request_event)

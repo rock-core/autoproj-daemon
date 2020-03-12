@@ -49,7 +49,9 @@ module Autoproj
             # @return [Boolean]
             def build_pull_request(pull_request)
                 base_repository = "#{pull_request.base_owner}/#{pull_request.base_name}"
-                branch_name = BuildconfManager.branch_name_by_pull_request(pull_request)
+                branch_name = BuildconfManager.branch_name_by_pull_request(
+                    @project, pull_request
+                )
 
                 build(
                     author: pull_request.head_owner,

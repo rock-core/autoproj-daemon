@@ -24,6 +24,7 @@ module Autoproj
             attr_reader :client
             attr_reader :watcher
             attr_reader :ws
+            attr_reader :project
 
             def initialize(workspace, load_config: true)
                 @ws = workspace
@@ -38,9 +39,9 @@ module Autoproj
                     if (m = /\.(.+)$/.match(manifest_name))
                         m[1]
                     end
-                project = [@ws.config.daemon_project, subsystem].compact.join('_')
-
-                @bb = Autoproj::Daemon::Buildbot.new(workspace, project: project)
+                @project = [@ws.config.daemon_project, subsystem].compact.join('_')
+                @project = 'daemon' if @project.empty?
+                @bb = Autoproj::Daemon::Buildbot.new(workspace, project: @project)
             end
 
             # Loads all package definitions from the installation manifest
@@ -120,10 +121,7 @@ module Autoproj
                 overrides = buildconf_manager.overrides_for_pull_request(pull_request)
                 return unless cache.changed?(pull_request, overrides)
 
-                branch_name =
-                    Autoproj::Daemon::BuildconfManager.branch_name_by_pull_request(
-                        pull_request
-                    )
+                branch_name = branch_name_by_pull_request(pull_request)
 
                 buildconf_manager.commit_and_push_overrides(branch_name, overrides)
                 cache.add(pull_request, overrides)
@@ -147,10 +145,7 @@ module Autoproj
             # @param [Github::PullRequest] pull_request
             # @return [void]
             def handle_pull_request_opened(pull_request)
-                branch_name =
-                    Autoproj::Daemon::BuildconfManager.branch_name_by_pull_request(
-                        pull_request
-                    )
+                branch_name = branch_name_by_pull_request(pull_request)
 
                 overrides = buildconf_manager.overrides_for_pull_request(pull_request)
                 return unless cache.changed?(pull_request, overrides)
@@ -168,10 +163,7 @@ module Autoproj
             # @param [Github::PullRequest] pull_request
             # @return [void]
             def handle_pull_request_closed(pull_request)
-                branch_name =
-                    Autoproj::Daemon::BuildconfManager.branch_name_by_pull_request(
-                        pull_request
-                    )
+                branch_name = branch_name_by_pull_request(pull_request)
                 begin
                     Autoproj.message "Deleting stale branch #{branch_name} "\
                         "from #{buildconf_package.owner}/#{buildconf_package.name}"
@@ -292,7 +284,7 @@ module Autoproj
                     packages,
                     cache,
                     ws,
-                    project: @bb.project
+                    project: @project
                 )
                 @watcher = Autoproj::Daemon::GithubWatcher.new(
                     client,
@@ -392,6 +384,12 @@ module Autoproj
                 config.configure 'daemon_buildbot_scheduler'
                 config.configure 'daemon_max_age'
                 save_configuration
+            end
+
+            def branch_name_by_pull_request(pull_request)
+                Autoproj::Daemon::BuildconfManager.branch_name_by_pull_request(
+                    @project, pull_request
+                )
             end
         end
     end

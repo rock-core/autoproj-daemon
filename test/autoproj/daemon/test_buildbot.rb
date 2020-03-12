@@ -73,7 +73,7 @@ module Autoproj
                     now = Time.now
                     flexmock(bb).should_receive(:build).with(
                         author: 'contributor',
-                        branch: 'autoproj/tidewise/drivers-gps_ublox/pulls/22',
+                        branch: 'autoproj/wetpaint/tidewise/drivers-gps_ublox/pulls/22',
                         category: 'pull_request',
                         codebase: '',
                         committer: 'contributor',
