@@ -95,8 +95,30 @@ module Autoproj
                 @pull_requests
             end
 
-            BRANCH_TO_PR_RX =
-                %r{autoproj/([A-Za-z\d\-_]+)/([A-Za-z\d\-_]+)/([A-Za-z\d\-_]+)/pulls/(\d+)}.freeze
+            BuildconfBranch = Struct.new :project, :owner, :repository, :pull_id
+
+            # Parse the buildconf ref into the info it contains
+            #
+            # The pattern autoproj/PROJECT/OWNER/REPO/pulls/ID, matching
+            # what {#branch_name_by_pull_request} does.
+            #
+            # @return [BuildconfBranch,nil] the info, or nil if the branch
+            #    name does not match the expected pattern
+            def parse_buildconf_branch(branch)
+                elements = branch.split('/')
+                return unless elements.size == 6
+                return unless elements[0] == 'autoproj'
+                return unless elements[4] == 'pulls'
+
+                pull_id =
+                    begin
+                        Float(elements[5])
+                    rescue ArgumentError
+                        return
+                    end
+
+                BuildconfBranch.new(elements[1], elements[2], elements[3], pull_id)
+            end
 
             # @return [Array<Github::Branch>]
             def update_branches
@@ -109,17 +131,20 @@ module Autoproj
             # @return [void]
             def delete_stale_branches
                 stale_branches = branches.select do |branch|
-                    unless (m = branch.branch_name.match(BRANCH_TO_PR_RX))
-                        # Delete old-style branches which did not contain
-                        # the project name
+                    branch_info = parse_buildconf_branch(branch.branch_name)
+                    unless branch_info
+                        # Delete branches under autoproj/ that do not match
+                        # the expected pattern (i.e. old stale branches before
+                        # we changed the pattern)
                         next branch.branch_name.start_with?('autoproj/')
                     end
 
-                    next false unless m[1] == @project
+                    next false unless branch_info.project == @project
 
                     pull_requests.none? do |pr|
-                        pr.base_owner == m[2] &&
-                            pr.base_name == m[3] && pr.number == m[4].to_i
+                        pr.base_owner == branch_info.owner &&
+                            pr.base_name == branch_info.repository &&
+                            pr.number == branch_info.pull_id
                     end
                 end
                 delete_branches(stale_branches)
