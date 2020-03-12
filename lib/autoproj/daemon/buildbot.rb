@@ -115,6 +115,7 @@ module Autoproj
                     revlink: revlink,
                     when_timestamp: when_timestamp
                 }
+                Autoproj.message "#{options}"
                 request.set_form_data(options)
 
                 Autoproj.message "Triggering build on #{branch}"
