@@ -51,7 +51,19 @@ module Autoproj
 
                     flexmock(Net::HTTP)
                         .new_instances
-                        .should_receive('request').and_return(response)
+                        .should_receive('request')
+                        .and_return(response)
+
+                    refute bb.build
+                end
+                it 'returns false if the request fails because of network errors' do
+                    ws.config.daemon_buildbot_host = 'bb-master'
+                    ws.config.daemon_buildbot_port = 8666
+
+                    flexmock(Net::HTTP)
+                        .new_instances
+                        .should_receive('request')
+                        .and_raise(Errno::ECONNREFUSED)
 
                     refute bb.build
                 end

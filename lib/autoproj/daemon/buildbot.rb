@@ -119,7 +119,14 @@ module Autoproj
 
                 Autoproj.message "Triggering build on #{branch}"
 
-                response = http.request(request)
+                response =
+                    begin
+                        http.request(request)
+                    rescue SystemCallError => e
+                        Autoproj.error "Failed to connect to buildbot: #{e}"
+                        return false
+                    end
+
                 if response.code == '200'
                     Autoproj.message 'OK'
                     return true
