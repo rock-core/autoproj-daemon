@@ -48,7 +48,7 @@ module Autoproj
             # @param [Github::PullRequest] options
             # @return [Boolean]
             def build_pull_request(pull_request)
-                base_repository = "#{pull_request.base_owner}/#{pull_request.base_name}"
+                base_repository = "https://github.com/#{pull_request.base_owner}/#{pull_request.base_name}"
                 branch_name = BuildconfManager.branch_name_by_pull_request(
                     @project, pull_request
                 )
@@ -61,7 +61,7 @@ module Autoproj
                     committer: pull_request.head_owner,
                     repository: base_repository,
                     revision: pull_request.head_sha,
-                    revlink: "https://github.com/#{base_repository}/pull/#{pull_request.number}",
+                    revlink: "#{base_repository}/pull/#{pull_request.number}",
                     when_timestamp: pull_request.updated_at.tv_sec
                 )
             end
@@ -69,7 +69,7 @@ module Autoproj
             # @param [Github::PushEvent] options
             # @return [Boolean]
             def build_mainline_push_event(push_event)
-                repository = "#{push_event.owner}/#{push_event.name}"
+                repository = "https://github.com/#{push_event.owner}/#{push_event.name}"
 
                 build(
                     # Codebase is a single codebase - i.e. single repo, but
@@ -81,7 +81,7 @@ module Autoproj
                     committer: push_event.author,
                     repository: repository,
                     revision: push_event.head_sha,
-                    revlink: "https://github.com/#{repository}",
+                    revlink: repository,
                     when_timestamp: push_event.created_at.tv_sec
                 )
             end

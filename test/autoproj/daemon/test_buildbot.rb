@@ -77,7 +77,7 @@ module Autoproj
                         category: 'pull_request',
                         codebase: '',
                         committer: 'contributor',
-                        repository: 'tidewise/drivers-gps_ublox',
+                        repository: 'https://github.com/tidewise/drivers-gps_ublox',
                         revision: 'abcdef',
                         revlink: 'https://github.com/tidewise/drivers-gps_ublox/pull/22',
                         when_timestamp: now.tv_sec
@@ -107,7 +107,7 @@ module Autoproj
                         category: 'push',
                         codebase: '',
                         committer: 'g-arjones',
-                        repository: 'tidewise/drivers-gps_ublox',
+                        repository: 'https://github.com/tidewise/drivers-gps_ublox',
                         revision: 'abcdef',
                         revlink: 'https://github.com/tidewise/drivers-gps_ublox',
                         when_timestamp: now.tv_sec
