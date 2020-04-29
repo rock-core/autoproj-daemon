@@ -14,18 +14,18 @@ module Autoproj
             # @return [Autoproj::Workspace]
             attr_reader :ws
 
-            HEADER = { 'Content-Type' => 'application/json' }.freeze
-            BODY = {
-                method: 'force',
-                jsonrpc: '2.0',
-                id: 1,
-                params: {
-                }
-            }.freeze
+            # The project name as defined by Buildbot
+            #
+            # In buildbot, a project is an encompassing concept that regroups
+            # multiple repositories/codebases
+            #
+            # @return [String]
+            attr_reader :project
 
             # @param [Autoproj::Workspace] workspace
-            def initialize(workspace)
+            def initialize(workspace, project: '')
                 @ws = workspace
+                @project = project
             end
 
             # @param [Hash] options
@@ -41,53 +41,101 @@ module Autoproj
                 URI.parse(
                     "http://#{ws.config.daemon_buildbot_host}:"\
                         "#{ws.config.daemon_buildbot_port}/"\
-                        'api/v2/forceschedulers/'\
-                        "#{ws.config.daemon_buildbot_scheduler}"
+                        'change_hook/base'
                 )
             end
 
             # @param [Github::PullRequest] options
             # @return [Boolean]
             def build_pull_request(pull_request)
-                repository = "#{pull_request.base_owner}/#{pull_request.base_name}"
-                branch_name = BuildconfManager.branch_name_by_pull_request(pull_request)
+                base_repository = "https://github.com/#{pull_request.base_owner}/#{pull_request.base_name}"
+                branch_name = BuildconfManager.branch_name_by_pull_request(
+                    @project, pull_request
+                )
 
                 build(
+                    author: pull_request.head_owner,
                     branch: branch_name,
-                    project: repository,
-                    repository: "https://github.com/#{repository}",
-                    revision: pull_request.head_sha
+                    category: 'pull_request',
+                    codebase: '',
+                    committer: pull_request.head_owner,
+                    repository: base_repository,
+                    revision: pull_request.head_sha,
+                    revlink: "#{base_repository}/pull/#{pull_request.number}",
+                    when_timestamp: pull_request.updated_at.tv_sec
                 )
             end
 
             # @param [Github::PushEvent] options
             # @return [Boolean]
             def build_mainline_push_event(push_event)
-                repository = "#{push_event.owner}/#{push_event.name}"
+                repository = "https://github.com/#{push_event.owner}/#{push_event.name}"
 
                 build(
+                    # Codebase is a single codebase - i.e. single repo, but
+                    # tracked across forks
+                    author: push_event.author,
                     branch: 'master',
-                    project: repository,
-                    repository: "https://github.com/#{repository}",
-                    revision: push_event.head_sha
+                    category: 'push',
+                    codebase: '',
+                    committer: push_event.author,
+                    repository: repository,
+                    revision: push_event.head_sha,
+                    revlink: repository,
+                    when_timestamp: push_event.created_at.tv_sec
                 )
             end
 
             # @param [Hash] options
             # @return [Boolean]
-            def build(**options)
+            def build(
+                author: '',
+                branch: 'master',
+                category: '',
+                codebase: '',
+                comments: '',
+                committer: '',
+                project: @project,
+                repository: '',
+                revision: '',
+                revlink: '',
+                when_timestamp: Time.now
+            )
                 http = Net::HTTP.new(uri.host, uri.port)
-                request = Net::HTTP::Post.new(uri.request_uri, HEADER)
-                request.body = body(options).to_json
+                request = Net::HTTP::Post.new(uri.request_uri)
 
-                branch = body(**options)[:params][:branch]
+                options = {
+                    author: author,
+                    branch: branch,
+                    codebase: codebase,
+                    category: category,
+                    comments: comments,
+                    committer: committer,
+                    project: project,
+                    repository: repository,
+                    revision: revision,
+                    revlink: revlink,
+                    when_timestamp: when_timestamp
+                }
+                Autoproj.message "#{options}"
+                request.set_form_data(options)
+
                 Autoproj.message "Triggering build on #{branch}"
 
-                response = http.request(request)
-                result = JSON.parse(response.body)
-                return true unless result['error']
+                response =
+                    begin
+                        http.request(request)
+                    rescue SystemCallError => e
+                        Autoproj.error "Failed to connect to buildbot: #{e}"
+                        return false
+                    end
 
-                Autoproj.error result['error']['message']
+                if response.code == '200'
+                    Autoproj.message 'OK'
+                    return true
+                end
+
+                Autoproj.error "#{response.code}: #{response.body}"
                 false
             end
         end

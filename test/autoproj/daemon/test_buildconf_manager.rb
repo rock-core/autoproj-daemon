@@ -30,7 +30,8 @@ module Autoproj
                 )
 
                 @manager = BuildconfManager.new(
-                    @buildconf, @client, @packages, @cache, @ws
+                    @buildconf, @client, @packages, @cache, @ws,
+                    project: 'myproject'
                 )
             end
 
@@ -138,12 +139,14 @@ module Autoproj
                     )
                     stale = autoproj_daemon_add_branch(
                         'rock-core', 'buildconf',
-                        branch_name: 'autoproj/rock-core/drivers-iodrivers_base/pulls/12',
+                        branch_name: 'autoproj/myproject/rock-core/'\
+                                     'drivers-iodrivers_base/pulls/12',
                         sha: 'abcdef'
                     )
                     autoproj_daemon_add_branch(
                         'rock-core', 'buildconf',
-                        branch_name: 'autoproj/rock-core/drivers-gps_base/pulls/55',
+                        branch_name: 'autoproj/myproject/rock-core/'\
+                                     'drivers-gps_base/pulls/55',
                         sha: 'ghijkl'
                     )
 
@@ -172,6 +175,27 @@ module Autoproj
                     @manager.delete_stale_branches
                 end
                 # rubocop: enable Metrics/BlockLength
+
+                it 'deletes branches that start with autoproj/ but do not match the expected pattern' do
+                    stale = []
+                    stale << autoproj_daemon_add_branch(
+                        'rock-core', 'buildconf',
+                        branch_name: 'autoproj/rock-core/'\
+                                     'drivers-iodrivers_base/pulls/12',
+                        sha: 'abcdef'
+                    )
+                    stale << autoproj_daemon_add_branch(
+                        'rock-core', 'buildconf',
+                        branch_name: 'autoproj/something',
+                        sha: 'abcdef'
+                    )
+                    @manager.update_branches
+                    @manager.update_pull_requests
+
+                    flexmock(@client).should_receive(:delete_branch).with(stale[0]).once
+                    flexmock(@client).should_receive(:delete_branch).with(stale[1]).once
+                    @manager.delete_stale_branches
+                end
             end
 
             describe '#create_missing_branches' do # rubocop: disable Metrics/BlockLength
@@ -179,7 +203,8 @@ module Autoproj
                 it 'creates branches for open PRs' do
                     existing_branch = autoproj_daemon_add_branch(
                         'rock-core', 'buildconf',
-                        branch_name: 'autoproj/rock-core/drivers-iodrivers_base/pulls/17',
+                        branch_name: 'autoproj/myproject/rock-core/'\
+                                     'drivers-iodrivers_base/pulls/17',
                         sha: 'abcdef'
                     )
 
@@ -206,7 +231,8 @@ module Autoproj
                     @manager.update_branches
                     @manager.update_pull_requests
 
-                    new_branch_name = 'autoproj/rock-core/drivers-gps_base/pulls/55'
+                    new_branch_name = 'autoproj/myproject/'\
+                                      'rock-core/drivers-gps_base/pulls/55'
                     new_branch = autoproj_daemon_add_branch(
                         'rock-core', 'buildconf',
                         branch_name: new_branch_name,
@@ -229,7 +255,8 @@ module Autoproj
                 it 'does not trigger if PR did not change' do
                     branch = autoproj_daemon_add_branch(
                         'rock-core', 'buildconf',
-                        branch_name: 'autoproj/rock-core/drivers-iodrivers_base/pulls/12',
+                        branch_name: 'autoproj/myproject/'\
+                                     'rock-core/drivers-iodrivers_base/pulls/12',
                         sha: 'abcdef'
                     )
 
@@ -271,7 +298,8 @@ module Autoproj
                 it 'triggers if overrides changed' do
                     branch = autoproj_daemon_add_branch(
                         'rock-core', 'buildconf',
-                        branch_name: 'autoproj/rock-core/drivers-iodrivers_base/pulls/12',
+                        branch_name: 'autoproj/myproject/'\
+                                     'rock-core/drivers-iodrivers_base/pulls/12',
                         sha: 'abcdef'
                     )
 
@@ -295,7 +323,8 @@ module Autoproj
                     @manager.update_branches
                     @manager.update_pull_requests
 
-                    branch_name = 'autoproj/rock-core/drivers-iodrivers_base/pulls/12'
+                    branch_name = 'autoproj/myproject/'\
+                                  'rock-core/drivers-iodrivers_base/pulls/12'
                     expected_overrides = [{
                         'drivers/iodrivers_base' => {
                             'remote_branch' => 'refs/pull/12/merge'
@@ -312,7 +341,8 @@ module Autoproj
                 it 'triggers if PR head sha changed' do
                     branch = autoproj_daemon_add_branch(
                         'rock-core', 'buildconf',
-                        branch_name: 'autoproj/rock-core/drivers-iodrivers_base/pulls/12',
+                        branch_name: 'autoproj/myproject/'\
+                                     'rock-core/drivers-iodrivers_base/pulls/12',
                         sha: 'abcdef'
                     )
 
@@ -352,7 +382,8 @@ module Autoproj
                     @cache.add(pr_cached, overrides)
                     @manager.update_branches
                     @manager.update_pull_requests
-                    branch_name = 'autoproj/rock-core/drivers-iodrivers_base/pulls/12'
+                    branch_name = 'autoproj/myproject/'\
+                                  'rock-core/drivers-iodrivers_base/pulls/12'
 
                     flexmock(@manager.bb).should_receive(:build_pull_request)
                                          .with(pr).once
@@ -364,7 +395,8 @@ module Autoproj
                 it 'triggers if PR base branch changed' do
                     branch = autoproj_daemon_add_branch(
                         'rock-core', 'buildconf',
-                        branch_name: 'autoproj/rock-core/drivers-iodrivers_base/pulls/12',
+                        branch_name: 'autoproj/myproject/'\
+                                     'rock-core/drivers-iodrivers_base/pulls/12',
                         sha: 'abcdef'
                     )
 
@@ -405,7 +437,8 @@ module Autoproj
                     @manager.update_branches
                     @manager.update_pull_requests
 
-                    branch_name = 'autoproj/rock-core/drivers-iodrivers_base/pulls/12'
+                    branch_name = 'autoproj/myproject/'\
+                                  'rock-core/drivers-iodrivers_base/pulls/12'
                     flexmock(@manager.bb).should_receive(:build_pull_request)
                                          .with(pr).once
                     flexmock(@manager).should_receive(:commit_and_push_overrides)

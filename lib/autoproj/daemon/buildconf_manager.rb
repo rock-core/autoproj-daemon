@@ -49,8 +49,11 @@ module Autoproj
             #     with all package repositories to watch
             # @param [Autoproj::Daemon::PullRequestCache] cache Pull request cache
             # @param [Autoproj::Workspace] workspace Current workspace
-            def initialize(buildconf, client, packages, cache, workspace)
-                @bb = Buildbot.new(workspace)
+            def initialize(
+                buildconf, client, packages, cache, workspace, project: 'daemon'
+            )
+                @project = project.to_str
+                @bb = Buildbot.new(workspace, project: project)
                 @buildconf = buildconf
                 @client = client
                 @packages = packages
@@ -92,8 +95,30 @@ module Autoproj
                 @pull_requests
             end
 
-            BRANCH_TO_PR_RX =
-                %r{autoproj/([A-Za-z\d\-_]+)/([A-Za-z\d\-_]+)/pulls/(\d+)}.freeze
+            BuildconfBranch = Struct.new :project, :owner, :repository, :pull_id
+
+            # Parse the buildconf ref into the info it contains
+            #
+            # The pattern autoproj/PROJECT/OWNER/REPO/pulls/ID, matching
+            # what {#branch_name_by_pull_request} does.
+            #
+            # @return [BuildconfBranch,nil] the info, or nil if the branch
+            #    name does not match the expected pattern
+            def parse_buildconf_branch(branch)
+                elements = branch.split('/')
+                return unless elements.size == 6
+                return unless elements[0] == 'autoproj'
+                return unless elements[4] == 'pulls'
+
+                pull_id =
+                    begin
+                        Float(elements[5])
+                    rescue ArgumentError
+                        return
+                    end
+
+                BuildconfBranch.new(elements[1], elements[2], elements[3], pull_id)
+            end
 
             # @return [Array<Github::Branch>]
             def update_branches
@@ -106,11 +131,20 @@ module Autoproj
             # @return [void]
             def delete_stale_branches
                 stale_branches = branches.select do |branch|
-                    next false unless (m = branch.branch_name.match(BRANCH_TO_PR_RX))
+                    branch_info = parse_buildconf_branch(branch.branch_name)
+                    unless branch_info
+                        # Delete branches under autoproj/ that do not match
+                        # the expected pattern (i.e. old stale branches before
+                        # we changed the pattern)
+                        next branch.branch_name.start_with?('autoproj/')
+                    end
+
+                    next false unless branch_info.project == @project
 
                     pull_requests.none? do |pr|
-                        pr.base_owner == m[1] &&
-                            pr.base_name == m[2] && pr.number == m[3].to_i
+                        pr.base_owner == branch_info.owner &&
+                            pr.base_name == branch_info.repository &&
+                            pr.number == branch_info.pull_id
                     end
                 end
                 delete_branches(stale_branches)
@@ -126,9 +160,13 @@ module Autoproj
             end
 
             # @return [String]
-            def self.branch_name_by_pull_request(pull_request)
-                "autoproj/#{pull_request.base_owner}/"\
+            def self.branch_name_by_pull_request(project, pull_request)
+                "autoproj/#{project}/#{pull_request.base_owner}/"\
                     "#{pull_request.base_name}/pulls/#{pull_request.number}"
+            end
+
+            def branch_name_by_pull_request(pull_request)
+                self.class.branch_name_by_pull_request(@project, pull_request)
             end
 
             # @return [(Array<Github::Branch>, Array<Github::Branch>)]
@@ -137,7 +175,7 @@ module Autoproj
                 existing = []
 
                 pull_requests.each do |pr|
-                    branch_name = BuildconfManager.branch_name_by_pull_request(pr)
+                    branch_name = branch_name_by_pull_request(pr)
                     found_branch =
                         branches.find { |branch| branch.branch_name == branch_name }
 
@@ -229,7 +267,7 @@ module Autoproj
             # @return [Github::PullRequest, nil]
             def pull_request_by_branch(branch)
                 pull_requests.find do |pr|
-                    BuildconfManager.branch_name_by_pull_request(pr) == branch.branch_name
+                    branch_name_by_pull_request(pr) == branch.branch_name
                 end
             end
 

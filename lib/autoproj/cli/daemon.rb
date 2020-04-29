@@ -24,15 +24,24 @@ module Autoproj
             attr_reader :client
             attr_reader :watcher
             attr_reader :ws
+            attr_reader :project
 
-            def initialize(workspace)
-                @bb = Autoproj::Daemon::Buildbot.new(workspace)
-                @cache = Autoproj::Daemon::PullRequestCache.load(workspace)
+            def initialize(workspace, load_config: true)
                 @ws = workspace
+                @ws.load_config if load_config
+
+                @cache = Autoproj::Daemon::PullRequestCache.load(workspace)
                 @packages = nil
-                ws.config.load if File.exist?(ws.config_file_path)
                 @update_failed = false
-                ws.load_config
+
+                manifest_name = @ws.config.get('manifest_name', 'manifest')
+                subsystem =
+                    if (m = /\.(.+)$/.match(manifest_name))
+                        m[1]
+                    end
+                @project = [@ws.config.daemon_project, subsystem].compact.join('_')
+                @project = 'daemon' if @project.empty?
+                @bb = Autoproj::Daemon::Buildbot.new(workspace, project: @project)
             end
 
             # Loads all package definitions from the installation manifest
@@ -112,10 +121,7 @@ module Autoproj
                 overrides = buildconf_manager.overrides_for_pull_request(pull_request)
                 return unless cache.changed?(pull_request, overrides)
 
-                branch_name =
-                    Autoproj::Daemon::BuildconfManager.branch_name_by_pull_request(
-                        pull_request
-                    )
+                branch_name = branch_name_by_pull_request(pull_request)
 
                 buildconf_manager.commit_and_push_overrides(branch_name, overrides)
                 cache.add(pull_request, overrides)
@@ -139,10 +145,7 @@ module Autoproj
             # @param [Github::PullRequest] pull_request
             # @return [void]
             def handle_pull_request_opened(pull_request)
-                branch_name =
-                    Autoproj::Daemon::BuildconfManager.branch_name_by_pull_request(
-                        pull_request
-                    )
+                branch_name = branch_name_by_pull_request(pull_request)
 
                 overrides = buildconf_manager.overrides_for_pull_request(pull_request)
                 return unless cache.changed?(pull_request, overrides)
@@ -160,10 +163,7 @@ module Autoproj
             # @param [Github::PullRequest] pull_request
             # @return [void]
             def handle_pull_request_closed(pull_request)
-                branch_name =
-                    Autoproj::Daemon::BuildconfManager.branch_name_by_pull_request(
-                        pull_request
-                    )
+                branch_name = branch_name_by_pull_request(pull_request)
                 begin
                     Autoproj.message "Deleting stale branch #{branch_name} "\
                         "from #{buildconf_package.owner}/#{buildconf_package.name}"
@@ -217,7 +217,10 @@ module Autoproj
 
                 @packages = resolve_packages.map do |pkg|
                     vcs = pkg[:vcs]
-                    next unless (match = parse_repo_url_from_vcs(vcs))
+                    unless (match = parse_repo_url_from_vcs(vcs))
+                        Autoproj.message "ignored #{pkg.name}: VCS not matching"
+                        next
+                    end
                     next if vcs[:commit] || vcs[:tag]
 
                     owner, name = match
@@ -267,19 +270,21 @@ module Autoproj
             # @return [void]
             def prepare
                 unless ws.config.daemon_api_key
-                    raise Autoproj::ConfigError, 'you must configure the '\
-                        'daemon before starting'
+                    raise Autoproj::ConfigError,
+                          'required configuration daemon_api_key not set'
                 end
                 @client = Autoproj::Daemon::Github::Client.new(
                     access_token: ws.config.daemon_api_key,
                     auto_paginate: true
                 )
+
                 @buildconf_manager = Autoproj::Daemon::BuildconfManager.new(
                     buildconf_package,
                     client,
                     packages,
                     cache,
-                    ws
+                    ws,
+                    project: @project
                 )
                 @watcher = Autoproj::Daemon::GithubWatcher.new(
                     client,
@@ -379,6 +384,12 @@ module Autoproj
                 config.configure 'daemon_buildbot_scheduler'
                 config.configure 'daemon_max_age'
                 save_configuration
+            end
+
+            def branch_name_by_pull_request(pull_request)
+                Autoproj::Daemon::BuildconfManager.branch_name_by_pull_request(
+                    @project, pull_request
+                )
             end
         end
     end

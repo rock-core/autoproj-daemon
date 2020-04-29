@@ -54,14 +54,20 @@ module Autoproj
             end
         end
 
-        describe '#daemon_buildbot_scheduler' do
-            it 'sets buildbot scheduler' do
-                @config.daemon_buildbot_scheduler = 'foo-scheduler'
-                assert_equal 'foo-scheduler', @config.daemon_buildbot_scheduler
+        describe '#daemon_project' do
+            it 'sets buildbot project' do
+                @config.daemon_project = 'name'
+                assert_equal 'name', @config.get('daemon_project')
+                assert_equal 'name', @config.daemon_project
             end
 
-            it 'returns build-force if buildbot scheduler not set' do
-                assert_equal 'build-force', @config.daemon_buildbot_scheduler
+            it 'returns the value of the daemon_project config key' do
+                @config.set 'daemon_project', 'name'
+                assert_equal 'name', @config.daemon_project
+            end
+
+            it 'returns nil if not set' do
+                assert_nil @config.daemon_project
             end
         end
 
