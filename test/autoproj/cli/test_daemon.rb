@@ -449,8 +449,9 @@ module Autoproj
                         flexmock(cli.bb).should_receive(:build).with(any).never
                         cli.handle_pull_request_event(event)
                     end
-                    it "does not update buildconf branch if the PR did not change" do
-                        cli.cache.add(@pull_request, @overrides)
+                    it "does not update buildconf branch if the PR is already in cache, "\
+                       "regardless of whether it is up-to-date" do
+                        cli.cache.add(@pull_request, [])
 
                         flexmock(cli.buildconf_manager)
                             .should_receive(:commit_and_push_overrides)
@@ -458,9 +459,7 @@ module Autoproj
 
                         cli.handle_pull_request_event(@pull_request_event)
                     end
-                    it "updates buildconf branch and cache if the PR changed" do
-                        cli.cache.add(@pull_request, [])
-
+                    it "updates buildconf branch and cache if the was not in cache" do
                         flexmock(cli.bb).should_receive(:build_pull_request)
                                         .with(@pull_request).once
 

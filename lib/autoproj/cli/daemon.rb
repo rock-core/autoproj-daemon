@@ -145,10 +145,10 @@ module Autoproj
             # @param [Github::PullRequest] pull_request
             # @return [void]
             def handle_pull_request_opened(pull_request)
-                branch_name = branch_name_by_pull_request(pull_request)
+                return if cache.include?(pull_request)
 
+                branch_name = branch_name_by_pull_request(pull_request)
                 overrides = buildconf_manager.overrides_for_pull_request(pull_request)
-                return unless cache.changed?(pull_request, overrides)
 
                 Autoproj.message "Creating branch #{branch_name} "\
                     "on #{buildconf_package.owner}/#{buildconf_package.name}"

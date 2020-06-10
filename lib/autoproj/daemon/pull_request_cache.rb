@@ -70,6 +70,11 @@ module Autoproj
                 pull_requests.find { |pr| pr.caches_pull_request?(pull_request) }
             end
 
+            # Whether the cache has an entry for the given pull request
+            def include?(pull_request)
+                cached(pull_request)
+            end
+
             # @param [Github::PullRequest] pull_request
             # @return [Boolean]
             def changed?(pull_request, overrides)
