@@ -1,6 +1,5 @@
 source "https://rubygems.org"
 
-gem 'autoproj', git: 'https://github.com/rock-core/autoproj'
 group :vscode do
     gem 'pry'
     gem 'pry-byebug'
