@@ -1,11 +1,11 @@
 # frozen_string_literal: true
 
-require 'autoproj'
-require 'net/http'
-require 'uri'
-require 'json'
-require 'autoproj/daemon/github/pull_request'
-require 'autoproj/daemon/github/push_event'
+require "autoproj"
+require "net/http"
+require "uri"
+require "json"
+require "autoproj/daemon/github/pull_request"
+require "autoproj/daemon/github/push_event"
 
 module Autoproj
     module Daemon
@@ -23,7 +23,7 @@ module Autoproj
             attr_reader :project
 
             # @param [Autoproj::Workspace] workspace
-            def initialize(workspace, project: '')
+            def initialize(workspace, project: "")
                 @ws = workspace
                 @project = project
             end
@@ -32,7 +32,7 @@ module Autoproj
             # @return [Hash]
             def body(**options)
                 BODY.merge(
-                    params: BODY[:params].merge(branch: 'master').merge(**options)
+                    params: BODY[:params].merge(branch: "master").merge(**options)
                 )
             end
 
@@ -41,14 +41,16 @@ module Autoproj
                 URI.parse(
                     "http://#{ws.config.daemon_buildbot_host}:"\
                         "#{ws.config.daemon_buildbot_port}/"\
-                        'change_hook/base'
+                        "change_hook/base"
                 )
             end
 
             # @param [Github::PullRequest] options
             # @return [Boolean]
             def build_pull_request(pull_request)
-                base_repository = "https://github.com/#{pull_request.base_owner}/#{pull_request.base_name}"
+                base_repository =
+                    "https://github.com/#{pull_request.base_owner}/"\
+                    "#{pull_request.base_name}"
                 branch_name = BuildconfManager.branch_name_by_pull_request(
                     @project, pull_request
                 )
@@ -56,8 +58,8 @@ module Autoproj
                 build(
                     author: pull_request.head_owner,
                     branch: branch_name,
-                    category: 'pull_request',
-                    codebase: '',
+                    category: "pull_request",
+                    codebase: "",
                     committer: pull_request.head_owner,
                     repository: base_repository,
                     revision: pull_request.head_sha,
@@ -75,9 +77,9 @@ module Autoproj
                     # Codebase is a single codebase - i.e. single repo, but
                     # tracked across forks
                     author: push_event.author,
-                    branch: 'master',
-                    category: 'push',
-                    codebase: '',
+                    branch: "master",
+                    category: "push",
+                    codebase: "",
                     committer: push_event.author,
                     repository: repository,
                     revision: push_event.head_sha,
@@ -89,16 +91,16 @@ module Autoproj
             # @param [Hash] options
             # @return [Boolean]
             def build(
-                author: '',
-                branch: 'master',
-                category: '',
-                codebase: '',
-                comments: '',
-                committer: '',
+                author: "",
+                branch: "master",
+                category: "",
+                codebase: "",
+                comments: "",
+                committer: "",
                 project: @project,
-                repository: '',
-                revision: '',
-                revlink: '',
+                repository: "",
+                revision: "",
+                revlink: "",
                 when_timestamp: Time.now
             )
                 http = Net::HTTP.new(uri.host, uri.port)
@@ -117,7 +119,7 @@ module Autoproj
                     revlink: revlink,
                     when_timestamp: when_timestamp
                 }
-                Autoproj.message "#{options}"
+                Autoproj.message options.to_s
                 request.set_form_data(options)
 
                 Autoproj.message "Triggering build on #{branch}"
@@ -130,8 +132,8 @@ module Autoproj
                         return false
                     end
 
-                if response.code == '200'
-                    Autoproj.message 'OK'
+                if response.code == "200"
+                    Autoproj.message "OK"
                     return true
                 end
 

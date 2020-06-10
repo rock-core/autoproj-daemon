@@ -1,14 +1,14 @@
 # frozen_string_literal: true
 
-require 'autoproj/daemon/buildbot'
-require 'autoproj/daemon/pull_request_cache'
-require 'autoproj/daemon/package_repository'
-require 'autoproj/daemon/github/client'
-require 'autoproj/daemon/github/branch'
-require 'autoproj/daemon/github/pull_request'
-require 'autoproj/daemon/overrides_retriever'
-require 'date'
-require 'yaml'
+require "autoproj/daemon/buildbot"
+require "autoproj/daemon/pull_request_cache"
+require "autoproj/daemon/package_repository"
+require "autoproj/daemon/github/client"
+require "autoproj/daemon/github/branch"
+require "autoproj/daemon/github/pull_request"
+require "autoproj/daemon/overrides_retriever"
+require "date"
+require "yaml"
 
 module Autoproj
     module Daemon
@@ -50,7 +50,7 @@ module Autoproj
             # @param [Autoproj::Daemon::PullRequestCache] cache Pull request cache
             # @param [Autoproj::Workspace] workspace Current workspace
             def initialize(
-                buildconf, client, packages, cache, workspace, project: 'daemon'
+                buildconf, client, packages, cache, workspace, project: "daemon"
             )
                 @project = project.to_str
                 @bb = Buildbot.new(workspace, project: project)
@@ -72,7 +72,7 @@ module Autoproj
                     [pkg.owner, pkg.name, pkg.branch]
                 end
 
-                Autoproj.message 'Fetching pull requests from '\
+                Autoproj.message "Fetching pull requests from "\
                     "#{filtered_repos.size} repositories..."
 
                 @pull_requests = filtered_repos.flat_map do |pkg|
@@ -80,7 +80,7 @@ module Autoproj
                         pkg.owner,
                         pkg.name,
                         base: pkg.branch,
-                        state: 'open'
+                        state: "open"
                     )
                 end
                 @pull_requests, @pull_requests_stale = @pull_requests.partition do |pr|
@@ -105,10 +105,10 @@ module Autoproj
             # @return [BuildconfBranch,nil] the info, or nil if the branch
             #    name does not match the expected pattern
             def parse_buildconf_branch(branch)
-                elements = branch.split('/')
+                elements = branch.split("/")
                 return unless elements.size == 6
-                return unless elements[0] == 'autoproj'
-                return unless elements[4] == 'pulls'
+                return unless elements[0] == "autoproj"
+                return unless elements[4] == "pulls"
 
                 pull_id =
                     begin
@@ -136,7 +136,7 @@ module Autoproj
                         # Delete branches under autoproj/ that do not match
                         # the expected pattern (i.e. old stale branches before
                         # we changed the pattern)
-                        next branch.branch_name.start_with?('autoproj/')
+                        next branch.branch_name.start_with?("autoproj/")
                     end
 
                     next false unless branch_info.project == @project
@@ -191,10 +191,10 @@ module Autoproj
                 [created, existing]
             end
 
-            OVERRIDES_COMMIT_MSG = 'Update PR overrides'
+            OVERRIDES_COMMIT_MSG = "Update PR overrides"
             OVERRIDES_FILE = File.join(
                 Autoproj::Workspace::OVERRIDES_DIR,
-                '999-autoproj.yml'
+                "999-autoproj.yml"
             ).freeze
 
             # @param [String] branch_name
@@ -209,14 +209,14 @@ module Autoproj
                     end
                 @importer.run_git_bare(
                     @main,
-                    'update-ref',
-                    '-m',
+                    "update-ref",
+                    "-m",
                     OVERRIDES_COMMIT_MSG,
                     "refs/heads/#{branch_name}",
                     commit_id
                 )
                 @importer.run_git_bare(
-                    @main, 'push', '-fu', @importer.remote_name, branch_name
+                    @main, "push", "-fu", @importer.remote_name, branch_name
                 )
                 client.branch(buildconf.owner, buildconf.name, branch_name)
             end
@@ -256,7 +256,7 @@ module Autoproj
                               end
                         {
                             key => {
-                                'remote_branch' => "refs/pull/#{pr.number}/merge"
+                                "remote_branch" => "refs/pull/#{pr.number}/merge"
                             }
                         }
                     end
@@ -286,7 +286,7 @@ module Autoproj
                     overrides = overrides_for_pull_request(pr)
                     next unless cache.changed?(pr, overrides)
 
-                    Autoproj.message 'Updating '\
+                    Autoproj.message "Updating "\
                                      "#{pr.base_owner}/#{pr.base_name}##{pr.number}"
                     commit_and_push_overrides(branch.branch_name, overrides)
                     bb.build_pull_request(pr)

@@ -1,9 +1,9 @@
 # frozen_string_literal: true
 
-require 'autoproj'
-require 'autoproj/ops/atomic_write'
-require 'autoproj/daemon/github/pull_request'
-require 'yaml'
+require "autoproj"
+require "autoproj/ops/atomic_write"
+require "autoproj/daemon/github/pull_request"
+require "yaml"
 
 module Autoproj
     # Main plugin module
@@ -82,7 +82,7 @@ module Autoproj
                     pull_request.updated_at > found.updated_at)
             end
 
-            CACHE_FILE = 'pull_request_cache.yml'
+            CACHE_FILE = "pull_request_cache.yml"
 
             # @return [void]
             def dump

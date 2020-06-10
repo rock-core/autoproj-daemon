@@ -1,12 +1,12 @@
 # frozen_string_literal: true
 
-require 'json'
-require 'octokit'
-require 'autoproj'
-require 'autoproj/daemon/github/branch'
-require 'autoproj/daemon/github/pull_request'
-require 'autoproj/daemon/github/push_event'
-require 'autoproj/daemon/github/pull_request_event'
+require "json"
+require "octokit"
+require "autoproj"
+require "autoproj/daemon/github/branch"
+require "autoproj/daemon/github/pull_request"
+require "autoproj/daemon/github/push_event"
+require "autoproj/daemon/github/pull_request_event"
 
 module Autoproj
     module Daemon
@@ -25,7 +25,7 @@ module Autoproj
                             secs, n = secs.divmod(count)
                             "#{n.to_i}#{name}" unless n.to_i == 0
                         end
-                    end.compact.reverse.join('')
+                    end.compact.reverse.join("")
                 end
 
                 # @return [void]
@@ -33,7 +33,7 @@ module Autoproj
                     return if @client.rate_limit!.remaining > 0
 
                     wait_for = @client.rate_limit.resets_in
-                    Autoproj.message 'API calls rate limit exceeded, waiting for '\
+                    Autoproj.message "API calls rate limit exceeded, waiting for "\
                                      "#{humanize_time(wait_for)}"
                     sleep wait_for
                 end
@@ -74,22 +74,11 @@ module Autoproj
                     nil
                 end
 
-                # @private
-                #
-                # @param [String] owner
-                # @param [Boolean] organization
-                # @return [void]
-                private def events_for(owner, organization: false)
-                    return @client.user_events(owner) unless organization
-
-                    @client.organization_events(owner)
-                end
-
                 # @param [String] user
                 # @return [Boolean]
                 def organization?(user)
                     with_retry do
-                        @client.user(user)['type'] == 'Organization'
+                        @client.user(user)["type"] == "Organization"
                     end
                 end
 
@@ -97,10 +86,10 @@ module Autoproj
                 def fetch_events(owner, organization: false)
                     with_retry do
                         events_for(owner, organization: organization).map do |event|
-                            type = event['type']
+                            type = event["type"]
                             next unless %w[PullRequestEvent PushEvent].include? type
 
-                            if type == 'PullRequestEvent'
+                            if type == "PullRequestEvent"
                                 PullRequestEvent.new(event.to_hash)
                             else
                                 PushEvent.new(event.to_hash)
@@ -162,6 +151,19 @@ module Autoproj
                 # @return [Time]
                 def last_response_time
                     @client.last_response.headers[:time]
+                end
+
+                private
+
+                # @private
+                #
+                # @param [String] owner
+                # @param [Boolean] organization
+                # @return [void]
+                def events_for(owner, organization: false)
+                    return @client.user_events(owner) unless organization
+
+                    @client.organization_events(owner)
                 end
             end
         end
