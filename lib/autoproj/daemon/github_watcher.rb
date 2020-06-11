@@ -28,9 +28,7 @@ module Autoproj
                 @ws = ws
                 @api_key = ws.config.daemon_api_key
                 @polling_period = ws.config.daemon_polling_period
-                @pull_request_hooks = []
-                @push_hooks = []
-                @organizations = nil
+                @hooks = []
             end
 
             # @return [String] An array with all users that we will be polling
@@ -59,24 +57,22 @@ module Autoproj
                 organizations.include?(user)
             end
 
+            # Whether
             # @param [String] owner
             # @param [String] name
             # @param [String] branch
             # @return [Boolean]
             def to_pull_request?(owner, name, branch)
-                cache.pull_requests.any? do |pr|
-                    pr.head_owner == owner && pr.head_name == name &&
-                        pr.head_branch == branch
-                end
+                cached_pull_request_affected_by_push_event(owner, name, branch)
             end
 
             # @param [Github::PushEvent] event
             # @return [PullRequestCache::CachedPullRequest, nil]
-            def cached_pull_request_affected_by_push_event(event)
+            def cached_pull_request_affected_by_push_event(owner, name, branch)
                 cache.pull_requests.find do |pr|
-                    pr.head_owner == event.owner &&
-                        pr.head_name == event.name &&
-                        pr.head_branch == event.branch
+                    pr.head_owner == owner &&
+                        pr.head_name == name &&
+                        pr.head_branch == branch
                 end
             end
 
@@ -87,20 +83,70 @@ module Autoproj
                     .round >= ws.config.daemon_max_age
             end
 
+            PartitionedEvents = Struct.new(
+                :push_events_to_mainline,
+                :push_events_to_pull_request,
+                :pull_request_events
+            ) do
+                def empty?
+                    push_events_to_pull_request.empty? &&
+                        push_events_to_mainline.empty? &&
+                        pull_request_events.empty?
+                end
+
+                def all_events
+                    push_events_to_pull_request +
+                        push_events_to_mainline +
+                        pull_request_events
+                end
+            end
+
             # @param [Array<Github::PushEvent, Github::PullRequestEvent>] events
             # @return [Array<Github::PushEvent, Github::PullRequestEvent>]
-            def filter_events(events)
-                events = events.select do |event|
+            def partition_and_filter_events(events, owner: nil)
+                filtered = PartitionedEvents.new([], [], [])
+                events.each do |event|
                     case event
                     when Github::PushEvent
-                        to_mainline?(event.owner, event.name, event.branch) ||
-                            to_pull_request?(event.owner, event.name, event.branch)
+                        partition_and_filter_push_event(filtered, event, owner: owner)
                     when Github::PullRequestEvent
-                        pr = event.pull_request
-                        to_mainline?(pr.base_owner, pr.base_name, pr.base_branch)
+                        partition_and_filter_pull_request_event(
+                            filtered, event, owner: owner
+                        )
                     end
                 end
-                events.reject { |event| stale?(event) }
+                filtered
+            end
+
+            # @api private
+            #
+            # Checks if a push event is useful to us, and partitions it into a
+            # {PartitionedEvents} object if it is
+            def partition_and_filter_push_event(partitioned_events, event, owner: nil)
+                return if stale?(event)
+                return if owner && event.owner != owner
+
+                if to_mainline?(event.owner, event.name, event.branch)
+                    partitioned_events.push_events_to_mainline << event
+                elsif to_pull_request?(event.owner, event.name, event.branch)
+                    partitioned_events.push_events_to_pull_request << event
+                end
+            end
+
+            # @api private
+            #
+            # Checks if a pull request event is useful to us, and partitions it
+            # into a {PartitionedEvents} object if it is
+            def partition_and_filter_pull_request_event(
+                partitioned_events, event, owner: nil
+            )
+                return if stale?(event)
+                return if owner && event.pull_request.base_owner != owner
+
+                pr = event.pull_request
+                return unless to_mainline?(pr.base_owner, pr.base_name, pr.base_branch)
+
+                partitioned_events.pull_request_events << event
             end
 
             def branch_current_head(owner, name, branch, memo: {})
@@ -111,11 +157,19 @@ module Autoproj
                 branch_state&.sha
             end
 
-            def pull_request_currently_open?(owner, name, number, memo: {})
-                cache_key = [owner, name, number]
-                all_prs = (memo[cache_key] ||= client.pull_requests(owner, name))
-                matching_pr = all_prs.find { |p| p.number == number }
-                matching_pr&.open?
+            # Return info about the given pull request
+            #
+            # @param [Hash] memo an optional cache of all pull requests existing
+            #   on a given owner and name, to speed up querying multiple pull
+            #   requests
+            def pull_request_info(owner, name, number, memo: nil)
+                if memo
+                    cache_key = [owner, name, number]
+                    all_prs = (memo[cache_key] ||= client.pull_requests(owner, name))
+                    all_prs.find { |p| p.number == number }
+                else
+                    client.pull_request(owner, name, number)
+                end
             end
 
             # @param [Github::PushEvent] push_event
@@ -132,141 +186,105 @@ module Autoproj
 
             # @param [Github::PushEvent] push_event
             # @return [PackageRepository, nil]
-            def package_affected_by_push_event(push_event)
+            def package_affected_by_push_event(owner, name, branch)
                 packages.find do |pkg|
-                    pkg.owner == push_event.owner &&
-                        pkg.name == push_event.name &&
-                        pkg.branch == push_event.branch
+                    pkg.owner == owner && pkg.name == name && pkg.branch == branch
                 end
             end
 
             # @param [Github::PushEvent] push_event
             # @return [void]
-            def dispatch_push_event(push_event)
-                to_mainline = to_mainline?(
-                    push_event.owner, push_event.name, push_event.branch
-                )
-                if to_mainline
-                    package = package_affected_by_push_event(push_event)
-                    return if package.head_sha == push_event.head_sha
-                else
-                    cached_pull_request =
-                        cached_pull_request_affected_by_push_event(push_event)
-
-                    pull_request = client.pull_request(
-                        cached_pull_request.base_owner,
-                        cached_pull_request.base_name,
-                        cached_pull_request.number
-                    )
-                    return unless pull_request&.open?
-                end
-                call_push_hooks(push_event, mainline: to_mainline,
-                                            pull_request: pull_request)
-            end
-
             # @param [String] owner The owner of the events feed
             # @param [Array] events An array of events
             # @return [void]
             def handle_owner_events(owner, events)
-                events = filter_events(events)
-                push_events, pull_request_events =
-                    events.partition { |event| event.kind_of? Github::PushEvent }
+                events = partition_and_filter_events(events, owner: owner)
 
-                push_events.select! { |e| e.owner == owner }
-                pull_request_events.select! { |e| e.pull_request.base_owner == owner }
+                modified_pull_requests = process_modified_pull_requests(events)
+                modified_mainlines = process_modified_mainlines(events)
 
-                handle_push_events(push_events)
-                handle_pull_request_events(pull_request_events)
+                dispatch(modified_mainlines, modified_pull_requests)
             end
 
-            # Compute the actual push events and dispatch them
+            # @api private
             #
-            # Instead of passing along the push events, we use them as hints
-            # that something happened on the branch we watch. We then pass along
-            # PushEvent objects where the SHA is the actual SHA from the branch,
-            # as reported by the API. This works arounds missing/wrong events
+            # Extracts all pull requests that might have been modified by the
+            # given events
             #
-            # This method does the generation of these 'events' based on the
-            # push events received from GitHub, and dispatches them
-            #
-            # @param [Array<Github::PushEvent>]
-            # @return [void]
-            def handle_push_events(events)
-                memo = {}
-                events = events.group_by(&:name)
-                events.each_value do |repo_events|
-                    repo_events = repo_events.group_by(&:branch)
-                    repo_events.each_value do |branch_events|
-                        latest_event = branch_events.max_by(&:created_at)
-                        sha = branch_current_head(
-                            latest_event.owner, latest_event.name, latest_event.branch,
-                            memo: memo
+            # @param [PartitionedEvents] events
+            # @return [GitHub::PullRequest=>[GitHub::PullRequestEvent,GitHub::PushEvent]]
+            def process_modified_pull_requests(events)
+                push_events =
+                    events
+                    .push_events_to_pull_request
+                    .group_by do |e|
+                        cached_pull_request_affected_by_push_event(
+                            e.owner, e.name, e.branch
                         )
-                        next unless sha
-
-                        event = latest_event.dup
-                        event.head_sha = sha
-                        dispatch_push_event(event)
                     end
-                end
-            end
+                push_events.delete(nil)
+                pull_request_events =
+                    events
+                    .pull_request_events
+                    .group_by(&:pull_request)
 
-            # Compute the actual pull request events and dispatch them
-            #
-            # Instead of passing along the pull request events, we use them as
-            # hints that something happened on the PRs we watch. We then pass
-            # along PushEvent objects where the SHA is the actual SHA from the
-            # branch, as reported by the API. This works around missing/wrong
-            # events
-            #
-            # This method does the generation of these 'events' based on the
-            # pull request events received from GitHub, and dispatches them
-            #
-            # @param [Array<Github::PullRequestEvent>]
-            # @return [void]
-            def handle_pull_request_events(events)
+                push_events =
+                    push_events
+                    .transform_keys { |pr| [pr.base_owner, pr.base_name, pr.number] }
+                pull_request_events =
+                    pull_request_events
+                    .transform_keys { |pr| [pr.base_owner, pr.base_name, pr.number] }
+                events = push_events.merge(pull_request_events) { |_, a, b| a + b }
+
                 memo = {}
-                events = events.group_by { |event| event.pull_request.base_name }
-                events.each_value do |repo_events|
-                    repo_events =
-                        repo_events.group_by { |event| event.pull_request.number }
+                events = events
+                         .transform_keys { |info| pull_request_info(*info, memo: memo) }
+                events.delete(nil)
+                events
+            end
 
-                    repo_events.each_value do |pull_request_events|
-                        latest_event = pull_request_events.max_by(&:created_at)
-                        pr = latest_event.pull_request
+            # @api private
+            #
+            # Extracts all packages whose mainline might have been modified by
+            # the given events
+            #
+            # @param [PartitionedEvents] events
+            # @return [Array<GitHub::PullRequest>]
+            def process_modified_mainlines(events)
+                per_package =
+                    events
+                    .push_events_to_mainline
+                    .group_by { |e| [e.owner, e.name, e.branch] }
 
-                        open = pull_request_currently_open?(
-                            pr.base_owner, pr.base_name, pr.number, memo: memo
-                        )
-                        next if !open && !cache.cached(pr)
-
-                        event = latest_event.dup
-                        event.pull_request.open = open
-                        call_pull_request_hooks(event)
-                    end
+                per_package = per_package.transform_keys do |info|
+                    package_affected_by_push_event(*info)
                 end
+
+                per_package.delete_if do |package, package_events|
+                    latest_event = package_events.max_by(&:created_at)
+                    package.head_sha == latest_event.head_sha
+                end
+
+                per_package
             end
 
-            # Adds a block that will be called whenever a pull request is opened
-            # in any of the watched repositories.
+            # Adds a block that will be called with packages and pull requests that
+            # might have been modified according to the event stream
             #
-            # @yield [repo, options] Gives the event description to the block
-            # @yieldparam [String] repo The repository name in the format user/repo_name
-            # @yieldparam [Hash] options A hash with pull request meta data
+            # @yieldparam [Array<PackageRepository>] package
+            # @yieldparam [Array<GitHub::PullRequest>] repository
             # @return [void]
-            def add_pull_request_hook(&hook)
-                @pull_request_hooks << hook
+            def subscribe(&hook)
+                @hooks << hook
             end
 
-            # Adds a block that will be called whenever a push to a watched branch
-            # or to a branch that has a PR open to a watched branch is detected.
+            # @api private
             #
-            # @yield [repo, options] Gives the event description to the block
-            # @yieldparam [String] repo The repository name in the format user/repo_name
-            # @yieldparam [Hash] options A hash with push meta data
-            # @return [void]
-            def add_push_hook(&hook)
-                @push_hooks << hook
+            # Dispatch modifications to the hooks registered with {#subscribe}
+            def dispatch(modified_mainlines, modified_pull_requests)
+                @hooks.each do |h|
+                    h.call(modified_mainlines, modified_pull_requests)
+                end
             end
 
             # Starts watching all repositories

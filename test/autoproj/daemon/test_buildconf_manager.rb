@@ -284,7 +284,7 @@ module Autoproj
                     @manager.update_pull_requests
 
                     flexmock(@manager).should_receive(:commit_and_push_overrides).never
-                    flexmock(@manager.bb).should_receive(:build).never
+                    flexmock(@manager.bb).should_receive(:post_change).never
                     @manager.trigger_build_if_branch_changed([branch])
                 end
                 it "triggers if overrides changed" do
@@ -325,7 +325,7 @@ module Autoproj
 
                     flexmock(@manager).should_receive(:commit_and_push_overrides)
                                       .with(branch_name, expected_overrides).once
-                    flexmock(@manager.bb).should_receive(:build_pull_request)
+                    flexmock(@manager.bb).should_receive(:post_pull_request_changes)
                                          .with(pr).once
 
                     @manager.trigger_build_if_branch_changed([branch])
@@ -377,7 +377,7 @@ module Autoproj
                     branch_name = "autoproj/myproject/"\
                                   "rock-core/drivers-iodrivers_base/pulls/12"
 
-                    flexmock(@manager.bb).should_receive(:build_pull_request)
+                    flexmock(@manager.bb).should_receive(:post_pull_request_changes)
                                          .with(pr).once
                     flexmock(@manager).should_receive(:commit_and_push_overrides)
                                       .with(branch_name, overrides).once
@@ -431,7 +431,7 @@ module Autoproj
 
                     branch_name = "autoproj/myproject/"\
                                   "rock-core/drivers-iodrivers_base/pulls/12"
-                    flexmock(@manager.bb).should_receive(:build_pull_request)
+                    flexmock(@manager.bb).should_receive(:post_pull_request_changes)
                                          .with(pr).once
                     flexmock(@manager).should_receive(:commit_and_push_overrides)
                                       .with(branch_name, overrides).once

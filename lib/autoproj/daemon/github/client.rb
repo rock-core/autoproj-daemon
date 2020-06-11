@@ -56,7 +56,7 @@ module Autoproj
                 def pull_requests(owner, name, options = {})
                     with_retry do
                         @client.pull_requests("#{owner}/#{name}", options).map do |pr|
-                            PullRequest.new(pr.to_hash)
+                            PullRequest.from_ruby_hash(pr.to_hash)
                         end
                     end
                 end
@@ -64,7 +64,7 @@ module Autoproj
                 # @return [PullRequest]
                 def pull_request(owner, name, number, options = {})
                     with_retry do
-                        PullRequest.new(
+                        PullRequest.from_ruby_hash(
                             @client.pull_request(
                                 "#{owner}/#{name}", number, options
                             ).to_hash
@@ -90,9 +90,9 @@ module Autoproj
                             next unless %w[PullRequestEvent PushEvent].include? type
 
                             if type == "PullRequestEvent"
-                                PullRequestEvent.new(event.to_hash)
+                                PullRequestEvent.from_ruby_hash(event.to_hash)
                             else
-                                PushEvent.new(event.to_hash)
+                                PushEvent.from_ruby_hash(event.to_hash)
                             end
                         end.compact
                     end
@@ -102,7 +102,7 @@ module Autoproj
                 def branches(owner, name, options = {})
                     with_retry do
                         @client.branches("#{owner}/#{name}", options).map do |branch|
-                            Branch.new(owner, name, branch.to_hash)
+                            Branch.from_ruby_hash(owner, name, branch.to_hash)
                         end
                     end
                 end
@@ -138,7 +138,7 @@ module Autoproj
                             "#{owner}/#{name}", branch_name
                         ).to_hash
                     end
-                    Branch.new(owner, name, model)
+                    Branch.from_ruby_hash(owner, name, model)
                 end
 
                 # @return [Integer]

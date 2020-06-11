@@ -116,7 +116,6 @@ module Autoproj
             end
 
             def autoproj_daemon_mock_github_api
-                @storage = GithubStorage.new
                 flexmock(Octokit::Client).new_instances do |i|
                     i.extend MockClient
                     i.storage = @storage
@@ -139,6 +138,10 @@ module Autoproj
                 autoproj_daemon_run_git(dir, "add", ".")
                 autoproj_daemon_run_git(dir, "commit", "-m", "Initial commit")
                 autoproj_daemon_run_git(dir, "push", "-f", "autobuild", "master")
+            end
+
+            def autoproj_daemon_buildconf_package
+                @autoproj_daemon_buildconf_package ||= CLI::Daemon.buildconf_package(@ws)
             end
 
             def autoproj_daemon_add_package(name, vcs)
@@ -170,6 +173,22 @@ module Autoproj
                     entry["builddir"],
                     entry["logdir"],
                     entry["dependencies"]
+                )
+            end
+
+            def autoproj_daemon_add_package_repository(
+                pkg_name, owner, name, branch = "master"
+            )
+                pkg = autoproj_daemon_add_package(
+                    pkg_name,
+                    type: "git",
+                    url: "https://github.com/#{owner}/#{name}",
+                    branch: branch
+                )
+
+                PackageRepository.new(
+                    pkg_name, owner, name, pkg.vcs.to_hash,
+                    ws: ws, local_dir: pkg.srcdir
                 )
             end
 
@@ -280,7 +299,7 @@ module Autoproj
 
             def autoproj_daemon_add_pull_request(**options)
                 pr = Autoproj::Daemon::Github::PullRequest.from_ruby_hash(
-                    state: options[:state],
+                    state: options[:state] || "open",
                     number: options[:number],
                     title: options[:title],
                     updated_at: options[:updated_at] || Time.now,

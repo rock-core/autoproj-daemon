@@ -45,9 +45,7 @@ module Autoproj
                 )
             end
 
-            # @param [Github::PullRequest] options
-            # @return [Boolean]
-            def build_pull_request(pull_request)
+            def post_pull_request_changes(pull_request)
                 base_repository =
                     "https://github.com/#{pull_request.base_owner}/"\
                     "#{pull_request.base_name}"
@@ -55,7 +53,7 @@ module Autoproj
                     @project, pull_request
                 )
 
-                build(
+                post_change(
                     author: pull_request.head_owner,
                     branch: branch_name,
                     category: "pull_request",
@@ -68,29 +66,30 @@ module Autoproj
                 )
             end
 
-            # @param [Github::PushEvent] options
-            # @return [Boolean]
-            def build_mainline_push_event(push_event)
-                repository = "https://github.com/#{push_event.owner}/#{push_event.name}"
+            def post_mainline_changes(_package, events)
+                events.each do |push_event|
+                    repository =
+                        "https://github.com/#{push_event.owner}/#{push_event.name}"
 
-                build(
-                    # Codebase is a single codebase - i.e. single repo, but
-                    # tracked across forks
-                    author: push_event.author,
-                    branch: "master",
-                    category: "push",
-                    codebase: "",
-                    committer: push_event.author,
-                    repository: repository,
-                    revision: push_event.head_sha,
-                    revlink: repository,
-                    when_timestamp: push_event.created_at.tv_sec
-                )
+                    post_change(
+                        # Codebase is a single codebase - i.e. single repo, but
+                        # tracked across forks
+                        author: push_event.author,
+                        branch: "master",
+                        category: "push",
+                        codebase: "",
+                        committer: push_event.author,
+                        repository: repository,
+                        revision: push_event.head_sha,
+                        revlink: repository,
+                        when_timestamp: push_event.created_at.tv_sec
+                    )
+                end
             end
 
             # @param [Hash] options
             # @return [Boolean]
-            def build(
+            def post_change(
                 author: "",
                 branch: "master",
                 category: "",

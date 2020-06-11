@@ -62,7 +62,7 @@ module Autoproj
             #
             # @param [Hash] vcs The package vcs hash
             # @return [Array<String>, nil] An array with the owner and repo name
-            def parse_repo_url_from_vcs(vcs)
+            def self.parse_repo_url_from_vcs(vcs)
                 return unless vcs[:type] == "git"
                 return unless vcs[:url] =~ VALID_URL_RX
                 return unless (match = PARSE_URL_RX.match(vcs[:url]))
@@ -101,67 +101,98 @@ module Autoproj
                 @cache.dump
             end
 
+            def handle_modifications(packages, pull_requests)
+                handle_mainline_modifications(packages) unless packages.empty?
+
+                pull_requests.each do |pull_request, events|
+                    next if buildconf_pull_request?(pull_request)
+
+                    handle_pull_request_modifications(pull_request, events)
+                end
+            end
+
             # @param [Github::PushEvent] push_event
             # @return [void]
-            def handle_mainline_push(push_event)
-                package = watcher.package_affected_by_push_event(push_event)
-                Autoproj.message "Push detected on #{push_event.owner}/"\
-                    "#{push_event.name}, branch: #{push_event.branch} "\
-                    "(remote: #{push_event.head_sha}, local: #{package.head_sha})"
+            def handle_mainline_modifications(packages)
+                packages.each do |pkg, events|
+                    Autoproj.message(
+                        "Push detected on #{pkg.name}, current: #{pkg.head_sha}"
+                    )
+                    events.each do |ev|
+                        Autoproj.message(
+                            "  #{ev.owner}/#{ev.name}, branch: #{ev.branch} "\
+                            "#{ev.head_sha}"
+                        )
+                    end
+                end
 
-                bb.build_mainline_push_event(push_event) unless update_failed?
+                if update_failed?
+                    Autoproj.message "Not triggering build, the last update failed"
+                    Autoproj.message "The daemon will attempt to update the workspace, "\
+                                     "and will trigger a new build if that's successful"
+                else
+                    packages.each do |package, events|
+                        bb.post_mainline_changes(package, events)
+                    end
+                end
 
-                clear_and_dump_cache if buildconf_push?(push_event)
+                buildconf_push = packages.each_value.any? do |events|
+                    events.any? { |ev| buildconf_push?(ev) }
+                end
+                clear_and_dump_cache if buildconf_push
                 restart_and_update
             end
 
             # @param [Github::PullRequest] pull_request
             # @return [void]
-            def handle_pull_request_push(pull_request)
+            def handle_pull_request_modifications(pull_request, events)
+                # Check whether the pull request closed, and if we're aware
+                unless pull_request.open?
+                    if cache.include?(pull_request)
+                        handle_pull_request_closed(pull_request)
+                    end
+                    return
+                end
+
+                unless cache.include?(pull_request)
+                    return handle_pull_request_opened(pull_request)
+                end
+
+                handle_pull_request_changes(pull_request, events)
+            end
+
+            # Handle changes made to an existing, already open, pull request
+            def handle_pull_request_changes(pull_request, _events)
                 overrides = buildconf_manager.overrides_for_pull_request(pull_request)
                 return unless cache.changed?(pull_request, overrides)
 
                 branch_name = branch_name_by_pull_request(pull_request)
-
                 buildconf_manager.commit_and_push_overrides(branch_name, overrides)
                 cache.add(pull_request, overrides)
 
                 Autoproj.message "Push detected on #{pull_request.base_owner}/"\
                     "#{pull_request.base_name}##{pull_request.number}"
 
-                bb.build_pull_request(pull_request)
+                bb.post_pull_request_changes(pull_request)
                 cache.dump
             end
 
-            # @param [Github::PushEvent] push_event
-            # @return [void]
-            def handle_push_event(push_event, mainline: nil, pull_request: nil)
-                return handle_mainline_push(push_event) if mainline
-                return if update_failed? || buildconf_pull_request?(pull_request)
-
-                handle_pull_request_push(pull_request)
-            end
-
-            # @param [Github::PullRequest] pull_request
-            # @return [void]
+            # Handle a pull request that has just been opened
             def handle_pull_request_opened(pull_request)
                 branch_name = branch_name_by_pull_request(pull_request)
-
                 overrides = buildconf_manager.overrides_for_pull_request(pull_request)
-                return unless cache.changed?(pull_request, overrides)
 
                 Autoproj.message "Creating branch #{branch_name} "\
                     "on #{buildconf_package.owner}/#{buildconf_package.name}"
 
                 buildconf_manager.commit_and_push_overrides(branch_name, overrides)
-                bb.build_pull_request(pull_request)
+                bb.post_pull_request_changes(pull_request)
 
                 cache.add(pull_request, overrides)
                 cache.dump
             end
 
-            # @param [Github::PullRequest] pull_request
-            # @return [void]
+            # Handle a pull request that has just been closed
             def handle_pull_request_closed(pull_request)
                 branch_name = branch_name_by_pull_request(pull_request)
                 begin
@@ -171,25 +202,10 @@ module Autoproj
                     client.delete_branch_by_name(buildconf_package.owner,
                                                  buildconf_package.name, branch_name)
                     cache.delete(pull_request)
-
-                # rubocop: disable Lint/SuppressedException
-                rescue Octokit::UnprocessableEntity
+                rescue Octokit::UnprocessableEntity # rubocop:disable Lint/SuppressedException
                 end
-                # rubocop: enable Lint/SuppressedException
 
                 cache.dump
-            end
-
-            # @param [Github::PullRequestEvent] pull_request_event
-            # @return [void]
-            def handle_pull_request_event(pull_request_event)
-                return if update_failed?
-                return if buildconf_pull_request?(pull_request_event.pull_request)
-
-                pr = pull_request_event.pull_request
-                return handle_pull_request_opened(pr) if pr.open?
-
-                handle_pull_request_closed(pr)
             end
 
             # @return [void]
@@ -203,11 +219,8 @@ module Autoproj
             #
             # @return [void]
             def setup_hooks
-                watcher.add_push_hook do |push_event, **options|
-                    handle_push_event(push_event, options)
-                end
-                watcher.add_pull_request_hook do |pull_request_event|
-                    handle_pull_request_event(pull_request_event)
+                watcher.subscribe do |packages, pull_requests|
+                    handle_modifications(packages, pull_requests)
                 end
             end
 
@@ -217,7 +230,7 @@ module Autoproj
 
                 @packages = resolve_packages.map do |pkg|
                     vcs = pkg[:vcs]
-                    unless (match = parse_repo_url_from_vcs(vcs))
+                    unless (match = self.class.parse_repo_url_from_vcs(vcs))
                         Autoproj.message "ignored #{pkg.name}: VCS not matching"
                         next
                     end
@@ -243,12 +256,18 @@ module Autoproj
                         ws: ws
                     )
                 end.compact
+                @packages << buildconf_package
             end
 
             # @return [PackageRepository]
             def buildconf_package
                 return @buildconf_package if @buildconf_package
 
+                @buildconf_package ||= self.class.buildconf_package(ws)
+            end
+
+            # @return [PackageRepository]
+            def self.buildconf_package(ws)
                 vcs = ws.manifest.main_package_set.vcs.to_hash
                 unless (match = parse_repo_url_from_vcs(vcs))
                     raise Autoproj::ConfigError,

@@ -275,7 +275,7 @@ module Autoproj
             # @return [void]
             def trigger_build(branch)
                 pr = pull_request_by_branch(branch)
-                bb.build_pull_request(pr)
+                bb.post_pull_request_changes(pr)
             end
 
             # @param [Array<Github::Branch>] branches
@@ -289,7 +289,7 @@ module Autoproj
                     Autoproj.message "Updating "\
                                      "#{pr.base_owner}/#{pr.base_name}##{pr.number}"
                     commit_and_push_overrides(branch.branch_name, overrides)
-                    bb.build_pull_request(pr)
+                    bb.post_pull_request_changes(pr)
                     cache.add(pr, overrides)
                 end
             end
