@@ -1,24 +1,12 @@
 # frozen_string_literal: true
 
-require "json"
+require "autoproj/daemon/github/json_facade"
 
 module Autoproj
     module Daemon
         module Github
             # A PushEvent model representation
-            class PushEvent
-                # @return [Hash]
-                attr_reader :model
-
-                def initialize(model)
-                    @model = JSON.parse(model.to_json)
-                end
-
-                def initialize_copy(_)
-                    super
-                    @model = @model.dup
-                end
-
+            class PushEvent < JSONFacade
                 def author
                     @model["actor"]["login"]
                 end
@@ -45,10 +33,6 @@ module Autoproj
 
                 def created_at
                     Time.parse(@model["created_at"])
-                end
-
-                def ==(other)
-                    model == other.model
                 end
             end
         end

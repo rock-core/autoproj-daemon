@@ -1,25 +1,31 @@
 # frozen_string_literal: true
 
-require "json"
+require "autoproj/daemon/github/json_facade"
 
 module Autoproj
     module Daemon
         module Github
             # A branch model representation
-            class Branch
+            class Branch < JSONFacade
                 # @return [String]
                 attr_reader :owner
 
                 # @return [String]
                 attr_reader :name
 
-                # @return [Hash]
-                attr_reader :model
+                def self.from_ruby_hash(owner, name, model)
+                    from_json_string(owner, name, model.to_json)
+                end
+
+                def self.from_json_string(owner, name, model)
+                    new(owner, name, JSON.parse(model))
+                end
 
                 def initialize(owner, name, model)
+                    super(model)
+
                     @owner = owner
                     @name = name
-                    @model = JSON.parse(model.to_json)
                 end
 
                 # @return [String]
@@ -30,11 +36,6 @@ module Autoproj
                 # @return [String]
                 def sha
                     @model["commit"]["sha"]
-                end
-
-                # @return [Boolean]
-                def ==(other)
-                    model == other.model
                 end
             end
         end

@@ -211,7 +211,7 @@ module Autoproj
             end
 
             def autoproj_daemon_add_push_event(**options)
-                event = Autoproj::Daemon::Github::PushEvent.new(
+                event = Autoproj::Daemon::Github::PushEvent.from_ruby_hash(
                     repo: {
                         name: "#{options[:owner]}/#{options[:name]}"
                     },
@@ -230,7 +230,7 @@ module Autoproj
             end
 
             def autoproj_daemon_create_pull_request(options)
-                Autoproj::Daemon::Github::PullRequest.new(
+                Autoproj::Daemon::Github::PullRequest.from_ruby_hash(
                     state: options[:state],
                     number: options[:number],
                     title: options[:title],
@@ -267,7 +267,7 @@ module Autoproj
                     state: options[:state],
                     number: options[:number]
                 )
-                event = Autoproj::Daemon::Github::PullRequestEvent.new(
+                event = Autoproj::Daemon::Github::PullRequestEvent.from_ruby_hash(
                     payload: {
                         pull_request: pr.instance_variable_get(:@model)
                     },
@@ -279,7 +279,7 @@ module Autoproj
             end
 
             def autoproj_daemon_add_pull_request(**options)
-                pr = Autoproj::Daemon::Github::PullRequest.new(
+                pr = Autoproj::Daemon::Github::PullRequest.from_ruby_hash(
                     state: options[:state],
                     number: options[:number],
                     title: options[:title],
@@ -312,7 +312,7 @@ module Autoproj
             end
 
             def autoproj_daemon_add_branch(owner, name, options)
-                branch = Autoproj::Daemon::Github::Branch.new(
+                branch = Autoproj::Daemon::Github::Branch.from_ruby_hash(
                     owner, name,
                     name: options[:branch_name],
                     commit: {
