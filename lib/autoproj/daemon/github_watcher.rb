@@ -294,14 +294,22 @@ module Autoproj
             # @return [void]
             def watch
                 Autoproj.message "Polling events from #{owners.size} users..."
+                latest_events = Hash.new(Time.at(0))
+
                 loop do
                     owners.each do |owner|
-                        handle_owner_events(
-                            owner,
-                            client.fetch_events(
-                                owner, organization: organization?(owner)
-                            )
+                        events = client.fetch_events(
+                            owner, organization: organization?(owner)
                         )
+                        events = events.sort_by(&:created_at)
+                        latest = latest_events[owner]
+                        while !events.empty? && events.first.created_at < latest
+                            events.shift
+                        end
+                        next if events.empty?
+
+                        latest_events[owner] = events.last.created_at
+                        handle_owner_events(owner, events)
                     end
                     sleep @polling_period
                 end
