@@ -418,51 +418,44 @@ module Autoproj
                 before do
                     @pkg = add_package("drivers/gps_base", "rock-core",
                                        "drivers-gps_base", "master")
+                    @event = autoproj_daemon_add_push_event(
+                        owner: "rock-core",
+                        name: "drivers-gps_base",
+                        branch: "master",
+                        head_sha: "efohai",
+                        created_at: Time.now
+                    )
                 end
 
                 it "returns the affected packages" do
-                    event = autoproj_daemon_add_push_event(
-                        owner: "rock-core",
-                        name: "drivers-gps_base",
-                        branch: "master",
-                        head_sha: "efohai",
-                        created_at: Time.now
+                    autoproj_daemon_add_branch(
+                        "rock-core", "drivers-gps_base",
+                        branch_name: "master", sha: "somethingsomething"
                     )
 
-                    events = GithubWatcher::PartitionedEvents.new([event], [], [])
+                    events = GithubWatcher::PartitionedEvents.new([@event], [], [])
                     packages = watcher.process_modified_mainlines(events)
-                    assert_equal({ @pkg => [event] }, packages)
+                    assert_equal({ @pkg => [@event] }, packages)
                 end
 
-                it "returns nothing if the latest event's SHA matches the package's" do
-                    e0 = autoproj_daemon_add_push_event(
-                        owner: "rock-core",
-                        name: "drivers-gps_base",
-                        branch: "master",
-                        head_sha: "efohai",
-                        created_at: Time.now - 1
-                    )
-                    e1 = autoproj_daemon_add_push_event(
-                        owner: "rock-core",
-                        name: "drivers-gps_base",
-                        branch: "master",
-                        head_sha: @pkg.head_sha,
-                        created_at: Time.now
+                it "returns nothing if the remote branch does not exist" do
+                    events = GithubWatcher::PartitionedEvents.new([@event], [], [])
+                    packages = watcher.process_modified_mainlines(events)
+                    assert packages.empty?
+                end
+
+                it "returns nothing if the current remote SHA matches the package's" do
+                    autoproj_daemon_add_branch(
+                        "rock-core", "drivers-gps_base",
+                        branch_name: "master", sha: @pkg.head_sha
                     )
 
-                    events = GithubWatcher::PartitionedEvents.new([e0, e1], [], [])
+                    events = GithubWatcher::PartitionedEvents.new([@event], [], [])
                     packages = watcher.process_modified_mainlines(events)
                     assert packages.empty?
                 end
 
                 it "returns a package only once" do
-                    event0 = autoproj_daemon_add_push_event(
-                        owner: "rock-core",
-                        name: "drivers-gps_base",
-                        branch: "master",
-                        head_sha: "eghijk",
-                        created_at: Time.now
-                    )
                     event1 = autoproj_daemon_add_push_event(
                         owner: "rock-core",
                         name: "drivers-gps_base",
@@ -470,12 +463,16 @@ module Autoproj
                         head_sha: "egedrohigf",
                         created_at: (Time.now + 1)
                     )
+                    autoproj_daemon_add_branch(
+                        "rock-core", "drivers-gps_base",
+                        branch_name: "master", sha: "somethingsomething"
+                    )
 
                     events = GithubWatcher::PartitionedEvents.new(
-                        [event0, event1], [], []
+                        [@event, event1], [], []
                     )
                     packages = watcher.process_modified_mainlines(events)
-                    assert_equal({ @pkg => [event0, event1] }, packages)
+                    assert_equal({ @pkg => [@event, event1] }, packages)
                 end
             end
 

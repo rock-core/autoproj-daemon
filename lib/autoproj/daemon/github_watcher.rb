@@ -260,9 +260,13 @@ module Autoproj
                     package_affected_by_push_event(*info)
                 end
 
-                per_package.delete_if do |package, package_events|
-                    latest_event = package_events.max_by(&:created_at)
-                    package.head_sha == latest_event.head_sha
+                memo = {}
+                per_package.delete_if do |package, _|
+                    remote_sha = branch_current_head(
+                        package.owner, package.name, package.branch,
+                        memo: memo
+                    )
+                    !remote_sha || (package.head_sha == remote_sha)
                 end
 
                 per_package
