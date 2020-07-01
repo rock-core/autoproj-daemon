@@ -36,10 +36,11 @@ module Autoproj
                 @packages.map(&:owner).uniq
             end
 
+            # Tests whether a repository's branch is one of our package's mainline
+            #
             # @param [String] owner
             # @param [String] name
             # @param [String] branch
-            # @return [Boolean]
             def to_mainline?(owner, name, branch)
                 packages.any? do |pkg|
                     pkg.owner == owner && pkg.name == name && pkg.branch == branch
@@ -51,23 +52,32 @@ module Autoproj
                 @organizations ||= owners.select { |owner| client.organization?(owner) }
             end
 
+            # Tests whether the given user is an organization
+            #
             # @param [String] user
-            # @return [Boolean]
             def organization?(user)
                 organizations.include?(user)
             end
 
-            # Whether
+            # Tests whether a repository's branch is the source branch of a
+            # pull request
+            #
             # @param [String] owner
             # @param [String] name
             # @param [String] branch
-            # @return [Boolean]
             def to_pull_request?(owner, name, branch)
                 cached_pull_request_affected_by_push_event(owner, name, branch)
             end
 
-            # @param [Github::PushEvent] event
-            # @return [PullRequestCache::CachedPullRequest, nil]
+            # @api private
+            #
+            # Lists the pull requests that would be affected by a push to a
+            # given target
+            #
+            # @param [String] owner
+            # @param [String] name
+            # @param [String] branch
+            # @return [PullRequestCache::CachedPullRequest,nil]
             def cached_pull_request_affected_by_push_event(owner, name, branch)
                 cache.pull_requests.find do |pr|
                     pr.head_owner == owner &&
@@ -76,8 +86,12 @@ module Autoproj
                 end
             end
 
+            # Checks whether an event's creation date is older than the configured
+            # daemon_max_age
+            #
+            # The configuration parameter lies in Autproj's configuration ws.config.
+            #
             # @param [Github::PushEvent, Github::PullRequestEvent] event
-            # @return [Boolean]
             def stale?(event)
                 (Time.now.to_date - event.created_at.to_date)
                     .round >= ws.config.daemon_max_age
@@ -88,12 +102,16 @@ module Autoproj
                 :push_events_to_pull_request,
                 :pull_request_events
             ) do
+                # Returns whether this set is empty
                 def empty?
                     push_events_to_pull_request.empty? &&
                         push_events_to_mainline.empty? &&
                         pull_request_events.empty?
                 end
 
+                # Return all of the events in a single array
+                #
+                # @return [Array<Github::PullRequestEvent,Github::PushEvent>]
                 def all_events
                     push_events_to_pull_request +
                         push_events_to_mainline +
@@ -101,8 +119,15 @@ module Autoproj
                 end
             end
 
+            # @api private
+            #
+            # Sort received events before further processing
+            #
             # @param [Array<Github::PushEvent, Github::PullRequestEvent>] events
-            # @return [Array<Github::PushEvent, Github::PullRequestEvent>]
+            # @param [String,nil] owner if non-nil, only consider events for
+            #   repositories owned by it. For pull request events, this is the
+            #   base repository.
+            # @return [PartitionedEvents]
             def partition_and_filter_events(events, owner: nil)
                 filtered = PartitionedEvents.new([], [], [])
                 events.each do |event|
@@ -122,6 +147,13 @@ module Autoproj
             #
             # Checks if a push event is useful to us, and partitions it into a
             # {PartitionedEvents} object if it is
+            #
+            # @param [PartitionedEvents] partitioned_events the structure in which
+            #   the event will be sorted.
+            # @param [Github::PushEvent] event the event to process
+            # @param [String] owner if non-nil, only consider the event if it is
+            #   affecting a repository owned by it
+            # @return [void]
             def partition_and_filter_push_event(partitioned_events, event, owner: nil)
                 return if stale?(event)
                 return if owner && event.owner != owner
@@ -137,6 +169,13 @@ module Autoproj
             #
             # Checks if a pull request event is useful to us, and partitions it
             # into a {PartitionedEvents} object if it is
+            #
+            # @param [PartitionedEvents] partitioned_events the structure in which
+            #   the event will be sorted.
+            # @param [Github::PushEvent] event the event to process
+            # @param [String] owner if non-nil, only consider the event if the
+            #    pull request's base repository is owned by it
+            # @return [void]
             def partition_and_filter_pull_request_event(
                 partitioned_events, event, owner: nil
             )
@@ -149,6 +188,15 @@ module Autoproj
                 partitioned_events.pull_request_events << event
             end
 
+            # Query Github to find a branch current HEAD SHA
+            #
+            # @param [String] owner the repository's owner (repo being $owner/$name)
+            # @param [String] name the repository's name (repo being $owner/$name)
+            # @param [String] branch the branch name
+            # @param [Hash] memo a hash allowing to memoize the result, avoiding
+            #   to get through the HTTP query stack.
+            # @return [String,nil] the HEAD SHA, or nil if the branch does
+            #   not seem to exist
             def branch_current_head(owner, name, branch, memo: {})
                 branches = (
                     memo[[owner, name]] ||= @client.branches(owner, name)
@@ -159,9 +207,14 @@ module Autoproj
 
             # Return info about the given pull request
             #
+            # @param [String] owner the repository's owner (repo being $owner/$name)
+            # @param [String] name the repository's name (repo being $owner/$name)
+            # @param [Integer] number the pull request number
             # @param [Hash] memo an optional cache of all pull requests existing
             #   on a given owner and name, to speed up querying multiple pull
             #   requests
+            # @return [Github::PullRequest,nil] the pull request, or nil if it does
+            #   not seem to exist
             def pull_request_info(owner, name, number, memo: nil)
                 if memo
                     cache_key = [owner, name, number]
@@ -172,19 +225,14 @@ module Autoproj
                 end
             end
 
-            # @param [Github::PushEvent] push_event
-            # @return [void]
-            def call_push_hooks(push_event, **options)
-                @push_hooks.each { |hook| hook.call(push_event, **options) }
-            end
-
-            # @param [Github::PullRequestEvent] pull_request_event
-            # @return [void]
-            def call_pull_request_hooks(pull_request_event)
-                @pull_request_hooks.each { |hook| hook.call(pull_request_event) }
-            end
-
-            # @param [Github::PushEvent] push_event
+            # @api private
+            #
+            # List packages that would be affected by a push on the given
+            # repository branch
+            #
+            # @param [String] owner
+            # @param [String] name
+            # @param [String] branch
             # @return [PackageRepository, nil]
             def package_affected_by_push_event(owner, name, branch)
                 packages.find do |pkg|
@@ -192,10 +240,12 @@ module Autoproj
                 end
             end
 
-            # @param [Github::PushEvent] push_event
-            # @return [void]
-            # @param [String] owner The owner of the events feed
-            # @param [Array] events An array of events
+            # @api private
+            #
+            # Process events received for a given user/organization
+            #
+            # @param [String] owner the user/organization name
+            # @param [Array<Github::PushEvent,Github::PullRequestEvent>] events
             # @return [void]
             def handle_owner_events(owner, events)
                 events = partition_and_filter_events(events, owner: owner)
@@ -212,7 +262,8 @@ module Autoproj
             # given events
             #
             # @param [PartitionedEvents] events
-            # @return [GitHub::PullRequest=>[GitHub::PullRequestEvent,GitHub::PushEvent]]
+            # @return [{Github::PullRequest=>
+            #           [Github::PullRequestEvent,Github::PushEvent]}]
             def process_modified_pull_requests(events)
                 push_events =
                     events
@@ -249,7 +300,7 @@ module Autoproj
             # the given events
             #
             # @param [PartitionedEvents] events
-            # @return [Array<GitHub::PullRequest>]
+            # @return [{PackageRepository=>[GitHub::PushEvent]}]
             def process_modified_mainlines(events)
                 per_package =
                     events
@@ -272,11 +323,14 @@ module Autoproj
                 per_package
             end
 
-            # Adds a block that will be called with packages and pull requests that
-            # might have been modified according to the event stream
+            # Adds a block that will be called with packages and pull requests
+            # that might have been modified according to the event stream
             #
-            # @yieldparam [Array<PackageRepository>] package
-            # @yieldparam [Array<GitHub::PullRequest>] repository
+            # @yieldparam [{PackageRepository=>
+            #               [GitHub::PushEvent]}] modified_mainlines
+            # @yieldparam [{Github::PullRequest=>
+            #               [Github::PullRequestEvent,Github::PushEvent]}]
+            #               modified_pull_requests
             # @return [void]
             def subscribe(&hook)
                 @hooks << hook
@@ -285,6 +339,11 @@ module Autoproj
             # @api private
             #
             # Dispatch modifications to the hooks registered with {#subscribe}
+            #
+            # @param [{PackageRepository=>[GitHub::PushEvent]}] modified_mainlines
+            # @param [{Github::PullRequest=>[Github::PullRequestEvent,Github::PushEvent]}]
+            #   modified_pull_requests
+            # @return [void]
             def dispatch(modified_mainlines, modified_pull_requests)
                 @hooks.each do |h|
                     h.call(modified_mainlines, modified_pull_requests)
@@ -292,6 +351,7 @@ module Autoproj
             end
 
             # Starts watching all repositories
+            #
             # This method will loop indefinitely, polling GitHub with the period
             # provided by the user.
             #

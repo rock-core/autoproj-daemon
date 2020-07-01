@@ -18,12 +18,19 @@ module Autoproj
         # same pattern, and registers its subcommand in {MainDaemon} while implementing
         # the functionality in this class
         class Daemon
+            # @return [Autoproj::Daemon::Buildbot]
             attr_reader :bb
+            # @return [Autoproj::Daemon::BuildconfManager]
             attr_reader :buildconf_manager
+            # @return [Autoproj::Daemon::PullRequestCache]
             attr_reader :cache
+            # @return [Autoproj::Daemon::Github::Client]
             attr_reader :client
+            # @return [Autoproj::Daemon::GithubWatcher]
             attr_reader :watcher
+            # @return [Autoproj::Workspace]
             attr_reader :ws
+            # @return [String]
             attr_reader :project
 
             def initialize(workspace, load_config: true)
@@ -101,20 +108,34 @@ module Autoproj
                 @cache.dump
             end
 
-            def handle_modifications(packages, pull_requests)
-                handle_mainline_modifications(packages) unless packages.empty?
+            # Process modifications
+            #
+            # @param [{PackageRepository=>[Autoproj::GitHub::PushEvent]}]
+            #        modified_mainlines
+            # @param [{Autoproj::Github::PullRequest=>
+            #          [Autoproj::Github::PullRequestEvent,Autoproj::Github::PushEvent]}]
+            #          modified_pull_requests
+            # @return [void]
+            def handle_modifications(modified_mainlines, modified_pull_requests)
+                unless modified_mainlines.empty?
+                    handle_mainline_modifications(modified_mainlines)
+                end
 
-                pull_requests.each do |pull_request, events|
+                modified_pull_requests.each do |pull_request, events|
                     next if buildconf_pull_request?(pull_request)
 
                     handle_pull_request_modifications(pull_request, events)
                 end
             end
 
-            # @param [Github::PushEvent] push_event
+            # @api private
+            #
+            # Process events that concern a package's mainline branch
+            #
+            # @param [{PackageRepository=>[GitHub::PushEvent]}] modified_mainlines
             # @return [void]
-            def handle_mainline_modifications(packages)
-                packages.each do |pkg, events|
+            def handle_mainline_modifications(modified_mainlines)
+                modified_mainlines.each do |pkg, events|
                     Autoproj.message(
                         "Push detected on #{pkg.name}, current: #{pkg.head_sha}"
                     )
@@ -131,19 +152,23 @@ module Autoproj
                     Autoproj.message "The daemon will attempt to update the workspace, "\
                                      "and will trigger a new build if that's successful"
                 else
-                    packages.each do |package, events|
+                    modified_mainlines.each do |package, events|
                         bb.post_mainline_changes(package, events)
                     end
                 end
 
-                buildconf_push = packages.each_value.any? do |events|
+                buildconf_push = modified_mainlines.each_value.any? do |events|
                     events.any? { |ev| buildconf_push?(ev) }
                 end
                 clear_and_dump_cache if buildconf_push
                 restart_and_update
             end
 
-            # @param [Github::PullRequest] pull_request
+            # @api private
+            #
+            # Process events that concern a pull request
+            #
+            # @param [Daemon::Github::PullRequest] pull_request
             # @return [void]
             def handle_pull_request_modifications(pull_request, events)
                 # Check whether the pull request closed, and if we're aware
@@ -161,7 +186,12 @@ module Autoproj
                 handle_pull_request_changes(pull_request, events)
             end
 
-            # Handle changes made to an existing, already open, pull request
+            # @api private
+            #
+            # Handle a pull request whose source SHA has changed
+            #
+            # @param [Daemon::Github::PullRequest] pull_request
+            # @return [void]
             def handle_pull_request_changes(pull_request, _events)
                 overrides = buildconf_manager.overrides_for_pull_request(pull_request)
                 return unless cache.changed?(pull_request, overrides)
@@ -177,7 +207,12 @@ module Autoproj
                 cache.dump
             end
 
+            # @api private
+            #
             # Handle a pull request that has just been opened
+            #
+            # @param [Autoproj::Daemon::Github::PullRequest] pull_request
+            # @return [void]
             def handle_pull_request_opened(pull_request)
                 branch_name = branch_name_by_pull_request(pull_request)
                 overrides = buildconf_manager.overrides_for_pull_request(pull_request)
@@ -192,7 +227,12 @@ module Autoproj
                 cache.dump
             end
 
+            # @api private
+            #
             # Handle a pull request that has just been closed
+            #
+            # @param [Autoproj::Daemon::Github::PullRequest] pull_request
+            # @return [void]
             def handle_pull_request_closed(pull_request)
                 branch_name = branch_name_by_pull_request(pull_request)
                 begin
@@ -215,7 +255,7 @@ module Autoproj
                 )
             end
 
-            # Adds hooks for Github events
+            # Subscribe to GitHub events using {#watcher}
             #
             # @return [void]
             def setup_hooks
@@ -224,6 +264,10 @@ module Autoproj
                 end
             end
 
+            # Return the list of packages in the current state of the workspace
+            #
+            # This list is computed only once, and then memoized
+            #
             # @return [Array<PackageRepository>]
             def packages
                 return @packages if @packages
@@ -259,14 +303,18 @@ module Autoproj
                 @packages << buildconf_package
             end
 
-            # @return [PackageRepository]
+            # The package object that represents the buildconf
+            #
+            # @return [Autoproj::Daemon::PackageRepository]
             def buildconf_package
                 return @buildconf_package if @buildconf_package
 
                 @buildconf_package ||= self.class.buildconf_package(ws)
             end
 
-            # @return [PackageRepository]
+            # Create a package object to represent a workspace's buildocnf
+            #
+            # @return [Autoproj::Daemon::PackageRepository]
             def self.buildconf_package(ws)
                 vcs = ws.manifest.main_package_set.vcs.to_hash
                 unless (match = parse_repo_url_from_vcs(vcs))
@@ -405,6 +453,11 @@ module Autoproj
                 save_configuration
             end
 
+            # Returns the buildconf branch that should be used to configure a build
+            # for a given pull request
+            #
+            # @param [Autoproj::Daemon::Github::PullRequest] pull_request
+            # @return [String]
             def branch_name_by_pull_request(pull_request)
                 Autoproj::Daemon::BuildconfManager.branch_name_by_pull_request(
                     @project, pull_request

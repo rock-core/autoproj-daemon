@@ -45,6 +45,10 @@ module Autoproj
                 )
             end
 
+            # Publish a change indicating that a pull request was modified
+            #
+            # @param [Github::PullRequest] pull_request
+            # @return [Boolean] true if the posting was successful, false otherwise
             def post_pull_request_changes(pull_request)
                 base_repository =
                     "https://github.com/#{pull_request.base_owner}/"\
@@ -66,6 +70,11 @@ module Autoproj
                 )
             end
 
+            # Publish changes that happened to a mainline branch
+            #
+            # @param [PackageRepository] _package
+            # @param [Array<Github::PushEvent>] events
+            # @return [Boolean]
             def post_mainline_changes(_package, events)
                 events.each do |push_event|
                     repository =
@@ -87,7 +96,6 @@ module Autoproj
                 end
             end
 
-            # @param [Hash] options
             # @return [Boolean]
             def post_change(
                 author: "",
