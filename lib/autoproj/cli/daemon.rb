@@ -121,10 +121,10 @@ module Autoproj
                     handle_mainline_modifications(modified_mainlines)
                 end
 
-                modified_pull_requests.each do |pull_request, events|
+                modified_pull_requests.each_key do |pull_request|
                     next if buildconf_pull_request?(pull_request)
 
-                    handle_pull_request_modifications(pull_request, events)
+                    handle_pull_request_modifications(pull_request)
                 end
             end
 
@@ -170,7 +170,7 @@ module Autoproj
             #
             # @param [Daemon::Github::PullRequest] pull_request
             # @return [void]
-            def handle_pull_request_modifications(pull_request, events)
+            def handle_pull_request_modifications(pull_request)
                 # Check whether the pull request closed, and if we're aware
                 unless pull_request.open?
                     if cache.include?(pull_request)
@@ -183,7 +183,7 @@ module Autoproj
                     return handle_pull_request_opened(pull_request)
                 end
 
-                handle_pull_request_changes(pull_request, events)
+                handle_pull_request_changes(pull_request)
             end
 
             # @api private
@@ -192,7 +192,7 @@ module Autoproj
             #
             # @param [Daemon::Github::PullRequest] pull_request
             # @return [void]
-            def handle_pull_request_changes(pull_request, _events)
+            def handle_pull_request_changes(pull_request)
                 overrides = buildconf_manager.overrides_for_pull_request(pull_request)
                 return unless cache.changed?(pull_request, overrides)
 
