@@ -1,13 +1,13 @@
 # frozen_string_literal: true
 
-require 'autoproj/cli/update'
-require 'autoproj/daemon/github/client'
-require 'autoproj/daemon/github/branch'
-require 'autoproj/daemon/buildbot'
-require 'autoproj/daemon/buildconf_manager'
-require 'autoproj/daemon/pull_request_cache'
-require 'autoproj/daemon/github_watcher'
-require 'octokit'
+require "autoproj/cli/update"
+require "autoproj/daemon/github/client"
+require "autoproj/daemon/github/branch"
+require "autoproj/daemon/buildbot"
+require "autoproj/daemon/buildconf_manager"
+require "autoproj/daemon/pull_request_cache"
+require "autoproj/daemon/github_watcher"
+require "octokit"
 
 module Autoproj
     module CLI
@@ -34,13 +34,13 @@ module Autoproj
                 @packages = nil
                 @update_failed = false
 
-                manifest_name = @ws.config.get('manifest_name', 'manifest')
+                manifest_name = @ws.config.get("manifest_name", "manifest")
                 subsystem =
                     if (m = /\.(.+)$/.match(manifest_name))
                         m[1]
                     end
-                @project = [@ws.config.daemon_project, subsystem].compact.join('_')
-                @project = 'daemon' if @project.empty?
+                @project = [@ws.config.daemon_project, subsystem].compact.join("_")
+                @project = "daemon" if @project.empty?
                 @bb = Autoproj::Daemon::Buildbot.new(workspace, project: @project)
             end
 
@@ -63,7 +63,7 @@ module Autoproj
             # @param [Hash] vcs The package vcs hash
             # @return [Array<String>, nil] An array with the owner and repo name
             def parse_repo_url_from_vcs(vcs)
-                return unless vcs[:type] == 'git'
+                return unless vcs[:type] == "git"
                 return unless vcs[:url] =~ VALID_URL_RX
                 return unless (match = PARSE_URL_RX.match(vcs[:url]))
 
@@ -195,7 +195,7 @@ module Autoproj
             # @return [void]
             def restart_and_update
                 Process.exec(
-                    Gem.ruby, $PROGRAM_NAME, 'daemon', 'start', '--update'
+                    Gem.ruby, $PROGRAM_NAME, "daemon", "start", "--update"
                 )
             end
 
@@ -252,12 +252,12 @@ module Autoproj
                 vcs = ws.manifest.main_package_set.vcs.to_hash
                 unless (match = parse_repo_url_from_vcs(vcs))
                     raise Autoproj::ConfigError,
-                          'Main configuration not managed by github'
+                          "Main configuration not managed by github"
                 end
 
                 owner, name = match
                 @buildconf_package = Autoproj::Daemon::PackageRepository.new(
-                    'main configuration',
+                    "main configuration",
                     owner,
                     name,
                     vcs,
@@ -271,7 +271,7 @@ module Autoproj
             def prepare
                 unless ws.config.daemon_api_key
                     raise Autoproj::ConfigError,
-                          'required configuration daemon_api_key not set'
+                          "required configuration daemon_api_key not set"
                 end
                 @client = Autoproj::Daemon::Github::Client.new(
                     access_token: ws.config.daemon_api_key,
@@ -336,28 +336,28 @@ module Autoproj
             #
             # @return [void]
             def declare_configuration_options
-                ws.config.declare 'daemon_api_key', 'string',
-                                  doc: 'Enter a github API key for authentication'
+                ws.config.declare "daemon_api_key", "string",
+                                  doc: "Enter a github API key for authentication"
 
-                ws.config.declare 'daemon_polling_period', 'string',
-                                  default: '60',
-                                  doc: 'Enter the github polling period'
+                ws.config.declare "daemon_polling_period", "string",
+                                  default: "60",
+                                  doc: "Enter the github polling period"
 
-                ws.config.declare 'daemon_buildbot_host', 'string',
-                                  default: 'localhost',
-                                  doc: 'Enter builbot host/ip'
+                ws.config.declare "daemon_buildbot_host", "string",
+                                  default: "localhost",
+                                  doc: "Enter builbot host/ip"
 
-                ws.config.declare 'daemon_buildbot_port', 'string',
-                                  default: '8010',
-                                  doc: 'Enter buildbot http port'
+                ws.config.declare "daemon_buildbot_port", "string",
+                                  default: "8010",
+                                  doc: "Enter buildbot http port"
 
-                ws.config.declare 'daemon_buildbot_scheduler', 'string',
-                                  default: 'build-force',
-                                  doc: 'Enter builbot scheduler name'
+                ws.config.declare "daemon_buildbot_scheduler", "string",
+                                  default: "build-force",
+                                  doc: "Enter builbot scheduler name"
 
-                ws.config.declare 'daemon_max_age', 'string',
-                                  default: '120',
-                                  doc: 'Enter events and pull requests max age'
+                ws.config.declare "daemon_max_age", "string",
+                                  default: "120",
+                                  doc: "Enter events and pull requests max age"
             end
 
             # Saves daemon configurations
@@ -377,12 +377,12 @@ module Autoproj
             def configure
                 declare_configuration_options
                 config = ws.config
-                config.configure 'daemon_api_key'
-                config.configure 'daemon_polling_period'
-                config.configure 'daemon_buildbot_host'
-                config.configure 'daemon_buildbot_port'
-                config.configure 'daemon_buildbot_scheduler'
-                config.configure 'daemon_max_age'
+                config.configure "daemon_api_key"
+                config.configure "daemon_polling_period"
+                config.configure "daemon_buildbot_host"
+                config.configure "daemon_buildbot_port"
+                config.configure "daemon_buildbot_scheduler"
+                config.configure "daemon_max_age"
                 save_configuration
             end
 

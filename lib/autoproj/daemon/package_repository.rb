@@ -1,8 +1,8 @@
 # frozen_string_literal: true
 
-require 'autobuild'
-require 'autoproj/ops/tools'
-require 'autoproj/vcs_definition'
+require "autobuild"
+require "autoproj/ops/tools"
+require "autoproj/vcs_definition"
 
 module Autoproj
     module Daemon
@@ -49,7 +49,7 @@ module Autoproj
 
             # @return [String]
             def branch
-                vcs[:remote_branch] || vcs[:branch] || 'master'
+                vcs[:remote_branch] || vcs[:branch] || "master"
             end
 
             # @return [String]

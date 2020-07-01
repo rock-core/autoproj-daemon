@@ -1,8 +1,8 @@
 # frozen_string_literal: true
 
-require 'autoproj/daemon/github/client'
-require 'autoproj/daemon/github/pull_request'
-require 'octokit'
+require "autoproj/daemon/github/client"
+require "autoproj/daemon/github/pull_request"
+require "octokit"
 
 module Autoproj
     module Daemon
@@ -11,8 +11,10 @@ module Autoproj
             DEPENDS_ON_RX = /(?:.*depends?(?:\s+on)?\s*\:?\s*\n)(.*)/mi.freeze
             OPEN_TASK_RX = %r{(?:-\s*\[\s*\]\s*)([A-Za-z\d+_\-\:\/\#\.]+)}.freeze
 
-            PULL_REQUEST_URL_RX = %r{https?\:\/\/(?:\w+\.)?github.com(?:\/+)
-                ([A-Za-z\d+_\-\.]+)(?:\/+)([A-Za-z\d+_\-\.]+)(?:\/+)pull(?:\/+)(\d+)}x.freeze
+            PULL_REQUEST_URL_RX =
+                %r{https?\:\/\/(?:\w+\.)?github.com(?:\/+)
+                ([A-Za-z\d+_\-\.]+)(?:\/+)([A-Za-z\d+_\-\.]+)(?:\/+)pull(?:\/+)(\d+)}x
+                .freeze
 
             OWNER_NAME_AND_NUMBER_RX = %r{([A-Za-z\d+_\-\.]+)\/
                 ([A-Za-z\d+_\-\.]+)\#(\d+)}x.freeze

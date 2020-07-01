@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require 'json'
+require "json"
 
 module Autoproj
     module Daemon
@@ -24,12 +24,12 @@ module Autoproj
 
                 # @return [String]
                 def branch_name
-                    @model['name']
+                    @model["name"]
                 end
 
                 # @return [String]
                 def sha
-                    @model['commit']['sha']
+                    @model["commit"]["sha"]
                 end
 
                 # @return [Boolean]

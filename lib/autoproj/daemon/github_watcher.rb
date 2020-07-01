@@ -1,11 +1,11 @@
 # frozen_string_literal: true
 
-require 'autoproj'
-require 'autoproj/daemon/github/client'
-require 'autoproj/daemon/package_repository'
-require 'autoproj/daemon/github/push_event'
-require 'autoproj/daemon/github/pull_request_event'
-require 'date'
+require "autoproj"
+require "autoproj/daemon/github/client"
+require "autoproj/daemon/package_repository"
+require "autoproj/daemon/github/push_event"
+require "autoproj/daemon/github/pull_request_event"
+require "date"
 
 module Autoproj
     module Daemon
@@ -21,7 +21,6 @@ module Autoproj
             # @param [Github::Client] client The github API wrapper
             # @param [Array<PackageRepository>] packages Watched packages
             # @param [Autoproj::Workspace] ws The loaded workspace
-            # rubocop:disable Naming/UncommunicativeMethodParamName
             def initialize(client, packages, cache, ws)
                 @cache = cache
                 @client = client
@@ -33,7 +32,6 @@ module Autoproj
                 @push_hooks = []
                 @organizations = nil
             end
-            # rubocop:enable Naming/UncommunicativeMethodParamName
 
             # @return [String] An array with all users that we will be polling
             def owners

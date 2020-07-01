@@ -1,15 +1,15 @@
 # frozen_string_literal: true
 
-$LOAD_PATH.unshift File.expand_path('../lib', __dir__)
-require 'autoproj/daemon'
-require 'autoproj/test'
-require 'minitest/autorun'
-require 'minitest/spec'
-require 'fileutils'
-require 'yaml'
-require 'octokit'
-require 'open3'
-require 'rubygems/package'
+$LOAD_PATH.unshift File.expand_path("../lib", __dir__)
+require "autoproj/daemon"
+require "autoproj/test"
+require "minitest/autorun"
+require "minitest/spec"
+require "fileutils"
+require "yaml"
+require "octokit"
+require "open3"
+require "rubygems/package"
 
 module Autoproj
     module Daemon
@@ -43,7 +43,7 @@ module Autoproj
             end
 
             def pull_request(repo, number, _options = {})
-                @storage.pull_requests[repo].find { |pr| pr['number'] == number }
+                @storage.pull_requests[repo].find { |pr| pr["number"] == number }
             end
 
             def branches(repo, _options = {})
@@ -109,10 +109,10 @@ module Autoproj
 
             def setup_buildconf_vcs(vcs)
                 ws.manifest.vcs = Autoproj::VCSDefinition.from_raw(vcs)
-                ws.config.set 'manifest_source', vcs.dup, true
+                ws.config.set "manifest_source", vcs.dup, true
                 ws.config.save
 
-                autoproj_daemon_git_init('autoproj', dummy: false)
+                autoproj_daemon_git_init("autoproj", dummy: false)
             end
 
             def autoproj_daemon_mock_github_api
@@ -124,7 +124,7 @@ module Autoproj
             end
 
             def autoproj_daemon_run_git(dir, *args)
-                _, err, status = Open3.capture3('git', *args, chdir: dir)
+                _, err, status = Open3.capture3("git", *args, chdir: dir)
                 raise err unless status.success?
             end
 
@@ -132,13 +132,13 @@ module Autoproj
                 dir = File.join(@ws.root_dir, dir)
                 if dummy
                     FileUtils.mkdir_p dir
-                    FileUtils.touch(File.join(dir, 'dummy'))
+                    FileUtils.touch(File.join(dir, "dummy"))
                 end
-                autoproj_daemon_run_git(dir, 'init')
-                autoproj_daemon_run_git(dir, 'remote', 'add', 'autobuild', dir)
-                autoproj_daemon_run_git(dir, 'add', '.')
-                autoproj_daemon_run_git(dir, 'commit', '-m', 'Initial commit')
-                autoproj_daemon_run_git(dir, 'push', '-f', 'autobuild', 'master')
+                autoproj_daemon_run_git(dir, "init")
+                autoproj_daemon_run_git(dir, "remote", "add", "autobuild", dir)
+                autoproj_daemon_run_git(dir, "add", ".")
+                autoproj_daemon_run_git(dir, "commit", "-m", "Initial commit")
+                autoproj_daemon_run_git(dir, "push", "-f", "autobuild", "master")
             end
 
             def autoproj_daemon_add_package(name, vcs)
@@ -146,30 +146,30 @@ module Autoproj
 
                 vcs = Autoproj::VCSDefinition.from_raw(vcs)
                 entry = {
-                    'name' => name,
-                    'type' => 'Autobuild::CMake',
-                    'vcs' => vcs.to_hash,
-                    'srcdir' => File.join(ws.root_dir, name),
-                    'importdir' => File.join(ws.root_dir, name),
-                    'builddir' => File.join(ws.root_dir, name, 'build'),
-                    'logdir' => File.join(ws.prefix_dir, 'log'),
-                    'prefix' => ws.prefix_dir,
-                    'dependencies' => []
+                    "name" => name,
+                    "type" => "Autobuild::CMake",
+                    "vcs" => vcs.to_hash,
+                    "srcdir" => File.join(ws.root_dir, name),
+                    "importdir" => File.join(ws.root_dir, name),
+                    "builddir" => File.join(ws.root_dir, name, "build"),
+                    "logdir" => File.join(ws.prefix_dir, "log"),
+                    "prefix" => ws.prefix_dir,
+                    "dependencies" => []
                 }
 
                 @entries << entry
 
                 save_installation_manifest
                 Autoproj::InstallationManifest::Package.new(
-                    entry['name'],
-                    entry['type'],
-                    entry['vcs'],
-                    entry['srcdir'],
-                    entry['importdir'],
-                    entry['prefix'],
-                    entry['builddir'],
-                    entry['logdir'],
-                    entry['dependencies']
+                    entry["name"],
+                    entry["type"],
+                    entry["vcs"],
+                    entry["srcdir"],
+                    entry["importdir"],
+                    entry["prefix"],
+                    entry["builddir"],
+                    entry["logdir"],
+                    entry["dependencies"]
                 )
             end
 
@@ -178,7 +178,7 @@ module Autoproj
             end
 
             def autoproj_daemon_add_event(owner, model)
-                if @storage.users[owner]['type'] == 'Organization'
+                if @storage.users[owner]["type"] == "Organization"
                     @storage.organization_events[owner] << model
                 else
                     @storage.user_events[owner] << model
@@ -193,10 +193,10 @@ module Autoproj
                 )
 
                 entry = {
-                    'package_set' => pkg_set.name,
-                    'vcs' => pkg_set.vcs.to_hash,
-                    'raw_local_dir' => pkg_set.raw_local_dir,
-                    'user_local_dir' => pkg_set.user_local_dir
+                    "package_set" => pkg_set.name,
+                    "vcs" => pkg_set.vcs.to_hash,
+                    "raw_local_dir" => pkg_set.raw_local_dir,
+                    "user_local_dir" => pkg_set.user_local_dir
                 }
 
                 @entries << entry

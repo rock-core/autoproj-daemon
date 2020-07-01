@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
-require 'json'
-require 'time'
+require "json"
+require "time"
 
 module Autoproj
     module Daemon
@@ -15,73 +15,73 @@ module Autoproj
 
                 # @return [Boolean]
                 def open?
-                    @model['state'] == 'open'
+                    @model["state"] == "open"
                 end
 
                 def open=(flag)
-                    @model['state'] = flag ? 'open' : 'closed'
+                    @model["state"] = flag ? "open" : "closed"
                 end
 
                 # @return [Integer]
                 def number
-                    @model['number']
+                    @model["number"]
                 end
 
                 # @return [String]
                 def title
-                    @model['title']
+                    @model["title"]
                 end
 
                 # @return [String]
                 def base_branch
-                    @model['base']['ref']
+                    @model["base"]["ref"]
                 end
 
                 # @return [String]
                 def head_branch
-                    @model['head']['ref']
+                    @model["head"]["ref"]
                 end
 
                 # @return [String]
                 def base_sha
-                    @model['base']['sha']
+                    @model["base"]["sha"]
                 end
 
                 # @return [String]
                 def head_sha
-                    @model['head']['sha']
+                    @model["head"]["sha"]
                 end
 
                 # @return [String]
                 def base_owner
-                    @model['base']['user']['login']
+                    @model["base"]["user"]["login"]
                 end
 
                 # @return [String]
                 def head_owner
-                    @model['head']['user']['login']
+                    @model["head"]["user"]["login"]
                 end
 
                 # @return [String]
                 def base_name
-                    @model['base']['repo']['name']
+                    @model["base"]["repo"]["name"]
                 end
 
                 # @return [String]
                 def head_name
-                    return nil unless @model['head']['repo']
+                    return nil unless @model["head"]["repo"]
 
-                    @model['head']['repo']['name']
+                    @model["head"]["repo"]["name"]
                 end
 
                 # @return [Time]
                 def updated_at
-                    Time.parse(@model['updated_at'])
+                    Time.parse(@model["updated_at"])
                 end
 
                 # @return [String]
                 def body
-                    @model['body']
+                    @model["body"]
                 end
 
                 def ==(other)
