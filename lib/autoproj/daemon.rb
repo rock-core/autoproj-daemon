@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "backports/2.5.0/hash/transform_keys"
+
 require "autoproj/cli/daemon"
 require "autoproj/cli/main_daemon"
 require "autoproj/daemon/github_watcher"

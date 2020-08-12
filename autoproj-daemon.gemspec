@@ -4,7 +4,7 @@ lib = File.expand_path("lib", __dir__)
 $LOAD_PATH.unshift(lib) unless $LOAD_PATH.include?(lib)
 require "autoproj/daemon/version"
 
-Gem::Specification.new do |spec|
+Gem::Specification.new do |spec| # rubocop:disable Metrics/BlockLength
     spec.name = "autoproj-daemon"
     spec.version       = Autoproj::Daemon::VERSION
     spec.authors       = ["Gabriel Arjones"]
@@ -32,6 +32,7 @@ Gem::Specification.new do |spec|
     spec.require_paths = ["lib"]
 
     spec.add_dependency "autoproj", "~> 2.12"
+    spec.add_dependency "backports"
     spec.add_dependency "faraday-http-cache"
     spec.add_dependency "octokit"
     spec.add_development_dependency "bundler"

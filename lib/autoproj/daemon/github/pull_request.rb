@@ -1,18 +1,12 @@
 # frozen_string_literal: true
 
-require "json"
-require "time"
+require "autoproj/daemon/github/json_facade"
 
 module Autoproj
     module Daemon
         module Github
             # A PullRequest model representation
-            class PullRequest
-                attr_reader :model
-                def initialize(model)
-                    @model = JSON.parse(model.to_json)
-                end
-
+            class PullRequest < JSONFacade
                 # @return [Boolean]
                 def open?
                     @model["state"] == "open"
@@ -82,10 +76,6 @@ module Autoproj
                 # @return [String]
                 def body
                     @model["body"]
-                end
-
-                def ==(other)
-                    @model == other.model
                 end
             end
         end

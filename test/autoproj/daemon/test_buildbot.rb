@@ -40,7 +40,7 @@ module Autoproj
                         .new_instances
                         .should_receive("request").and_return(response)
 
-                    assert bb.build
+                    assert bb.post_change
                 end
                 it "returns false if command fails" do
                     ws.config.daemon_buildbot_host = "bb-master"
@@ -54,7 +54,7 @@ module Autoproj
                         .should_receive("request")
                         .and_return(response)
 
-                    refute bb.build
+                    refute bb.post_change
                 end
                 it "returns false if the request fails because of network errors" do
                     ws.config.daemon_buildbot_host = "bb-master"
@@ -65,13 +65,13 @@ module Autoproj
                         .should_receive("request")
                         .and_raise(Errno::ECONNREFUSED)
 
-                    refute bb.build
+                    refute bb.post_change
                 end
             end
-            describe "#build_pull_request" do
+            describe "#post_pull_request_changes" do
                 it "adds buildbot force build paramaters" do
                     now = Time.now
-                    flexmock(bb).should_receive(:build).with(
+                    flexmock(bb).should_receive(:post_change).with(
                         author: "contributor",
                         branch: "autoproj/wetpaint/tidewise/drivers-gps_ublox/pulls/22",
                         category: "pull_request",
@@ -95,13 +95,13 @@ module Autoproj
                         updated_at: now
                     )
 
-                    bb.build_pull_request(pr)
+                    bb.post_pull_request_changes(pr)
                 end
             end
-            describe "#build_mainline_push_event" do
+            describe "#post_mainline_changes" do
                 it "adds buildbot force build paramaters" do
                     now = Time.now
-                    flexmock(bb).should_receive(:build).with(
+                    flexmock(bb).should_receive(:post_change).with(
                         author: "g-arjones",
                         branch: "master",
                         category: "push",
@@ -122,7 +122,7 @@ module Autoproj
                         created_at: now
                     )
 
-                    bb.build_mainline_push_event(event)
+                    bb.post_mainline_changes(flexmock, [event])
                 end
             end
         end

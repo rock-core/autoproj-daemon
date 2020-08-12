@@ -71,7 +71,7 @@ module Autoproj
                 nil
             end
 
-            # @param [Array<Github::PullRequest] visited
+            # @param [Array<Github::PullRequest>] visited
             # @param [Github::PullRequest] pull_request
             # @return [Boolean]
             def visited?(visited, pull_request)

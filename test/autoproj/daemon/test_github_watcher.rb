@@ -23,7 +23,7 @@ module Autoproj
                 )
 
                 @ws.config.daemon_polling_period = 0
-                @packages = []
+                @packages = [autoproj_daemon_buildconf_package]
 
                 @client = Github::Client.new
                 @cache = PullRequestCache.new(@ws)
@@ -47,7 +47,8 @@ module Autoproj
                 )
 
                 @packages << PackageRepository.new(
-                    pkg_name, owner, name, pkg.vcs.to_hash, ws: ws, local_dir: pkg.srcdir
+                    pkg_name, owner, name, pkg.vcs.to_hash,
+                    ws: ws, local_dir: pkg.srcdir
                 )
 
                 @packages.last
@@ -160,27 +161,20 @@ module Autoproj
                     )
                 end
                 it "returns the cached pull request that is affected by a push" do
-                    event = autoproj_daemon_add_push_event(
-                        owner: "contributor",
-                        name: "tools-syskit_fork",
-                        branch: "feature",
-                        created_at: Time.now
+                    pr = watcher.cached_pull_request_affected_by_push_event(
+                        "contributor", "tools-syskit_fork", "feature"
                     )
-                    assert_equal @cached,
-                                 watcher.cached_pull_request_affected_by_push_event(event)
+                    assert_equal @cached, pr
                 end
                 it "returns nil if the event does not affect any pull request" do
-                    event = autoproj_daemon_add_push_event(
-                        owner: "contributor",
-                        name: "tools-roby",
-                        branch: "feature",
-                        created_at: Time.now
+                    pr = watcher.cached_pull_request_affected_by_push_event(
+                        "contributor", "tools-roby", "feature"
                     )
-                    assert_nil watcher.cached_pull_request_affected_by_push_event(event)
+                    assert_nil pr
                 end
             end
 
-            describe "#filter_events" do
+            describe "#partition_and_filter_events" do
                 before do
                     @events = []
                     @events << autoproj_daemon_add_push_event(
@@ -203,7 +197,7 @@ module Autoproj
                     add_package("drivers/gps_ublox", "tidewise", "drivers-gps_ublox",
                                 "feature")
 
-                    events = watcher.filter_events(@events)
+                    events = watcher.partition_and_filter_events(@events).all_events
                     assert_equal 2, events.size
                     assert_equal events.first, @events[0]
                     assert_equal events.last, @events[1]
@@ -216,7 +210,7 @@ module Autoproj
                         created_at: Time.new(1990, 1, 1)
                     )
                     add_package("tools/roby", "rock-core", "tools-roby")
-                    events = watcher.filter_events(@events)
+                    events = watcher.partition_and_filter_events(@events).all_events
 
                     assert_equal 0, events.size
                 end
@@ -224,7 +218,8 @@ module Autoproj
                     add_package("drivers/gps_ublox", "tidewise", "drivers-gps_ublox",
                                 "feature")
 
-                    events = watcher.filter_events(@events)
+                    events = watcher.partition_and_filter_events(@events)
+                                    .pull_request_events
                     assert_equal 1, events.size
                     assert_equal events.first, @events.last
                 end
@@ -232,7 +227,8 @@ module Autoproj
                     add_package("drivers/iodrivers_base",
                                 "rock-core", "drivers-iodrivers_base")
 
-                    events = watcher.filter_events(@events)
+                    events = watcher.partition_and_filter_events(@events)
+                                    .push_events_to_mainline
                     assert_equal 1, events.size
                     assert_equal events.first, @events.first
                 end
@@ -263,125 +259,84 @@ module Autoproj
                         ]
                     )
 
-                    events = watcher.filter_events(@events)
+                    events = watcher.partition_and_filter_events(@events)
+                                    .push_events_to_pull_request
                     assert_equal 1, events.size
                     assert_equal events.first, @events.last
                 end
-                it "removes pushes if branches are different" do
+                it "removes pull request pushes if the base branch is not our mainline" do
                     add_package("drivers/iodrivers_base",
                                 "rock-core", "drivers-iodrivers_base", "develop")
 
-                    events = watcher.filter_events(@events)
+                    events = watcher.partition_and_filter_events(@events)
                     assert events.empty?
                 end
                 it "removes pushes if owners are different" do
                     add_package("drivers/iodrivers_base",
                                 "tidewise", "drivers-iodrivers_base")
 
-                    events = watcher.filter_events(@events)
+                    events = watcher.partition_and_filter_events(@events)
                     assert events.empty?
                 end
                 it "removes pushes if names are different" do
                     add_package("drivers/iodrivers_base",
                                 "rock-core", "drivers-iodrivers_base2")
 
-                    events = watcher.filter_events(@events)
+                    events = watcher.partition_and_filter_events(@events)
                     assert events.empty?
                 end
-                it "removes pull requests if branches are different" do
+                it "removes pull request events if branches are different" do
                     add_package("drivers/gps_ublox", "tidewise", "drivers-gps_ublox")
-                    events = watcher.filter_events(@events)
+                    events = watcher.partition_and_filter_events(@events)
                     assert events.empty?
                 end
                 it "removes pull requests if owners are different" do
                     add_package("drivers/gps_ublox", "rock-core", "drivers-gps_ublox",
                                 "feature")
 
-                    events = watcher.filter_events(@events)
+                    events = watcher.partition_and_filter_events(@events)
                     assert events.empty?
                 end
                 it "removes pull requests if names are different" do
                     add_package("drivers/gps_ublox", "tidewise", "drivers-gps_ublox2",
                                 "feature")
 
-                    events = watcher.filter_events(@events)
+                    events = watcher.partition_and_filter_events(@events)
                     assert events.empty?
                 end
             end
 
-            describe "#package_affected_by_push_event?" do
+            describe "#package_affected_by_push_event" do
                 before do
                     @pkg = add_package("drivers/gps_base", "rock-core",
                                        "drivers-gps_base", "master")
                 end
                 it "returns a package definition that is the target of a push event" do
-                    event = autoproj_daemon_add_push_event(
-                        owner: "rock-core",
-                        name: "drivers-gps_base",
-                        branch: "master",
-                        created_at: Time.now
+                    package = watcher.package_affected_by_push_event(
+                        "rock-core", "drivers-gps_base", "master"
                     )
-
-                    assert_equal @pkg, watcher.package_affected_by_push_event(event)
+                    assert_equal @pkg, package
                 end
                 it "returns nil if the push target is an untracked repository" do
-                    event = autoproj_daemon_add_push_event(
-                        owner: "rock-core",
-                        name: "drivers-iodrivers_base",
-                        branch: "master",
-                        created_at: Time.now
+                    package = watcher.package_affected_by_push_event(
+                        "rock-core", "drivers-iodrivers_base", "master"
                     )
-
-                    assert_nil watcher.package_affected_by_push_event(event)
+                    assert_nil package
+                end
+                it "handles the build configuration itself" do
+                    package = watcher.package_affected_by_push_event(
+                        "rock-core", "buildconf", "master"
+                    )
+                    assert_equal autoproj_daemon_buildconf_package, package
                 end
             end
 
-            describe "#dispatch_push_event" do
+            describe "#process_modified_pull_requests" do
                 before do
                     @pkg = add_package("drivers/gps_base", "rock-core",
                                        "drivers-gps_base", "master")
-                end
-                it "calls push hooks if a mainline push has a different head" do
-                    event = autoproj_daemon_add_push_event(
-                        owner: "rock-core",
-                        name: "drivers-gps_base",
-                        branch: "master",
-                        head_sha: "eghijk",
-                        created_at: Time.now
-                    )
 
-                    handler = flexmock
-                    handler.should_receive(:handle).with(event, mainline: true,
-                                                                pull_request: nil).once
-
-                    watcher.add_push_hook do |push_event, **options|
-                        handler.handle(push_event, options)
-                    end
-
-                    watcher.dispatch_push_event(event)
-                end
-                it "do not call push hooks if the mainline push has the same head" do
-                    pkg = @packages.find { |p| p.package == "drivers/gps_base" }
-                    event = autoproj_daemon_add_push_event(
-                        owner: "rock-core",
-                        name: "drivers-gps_base",
-                        branch: "master",
-                        head_sha: pkg.head_sha,
-                        created_at: Time.now
-                    )
-
-                    handler = flexmock
-                    handler.should_receive(:handle).with(event, mainline: true,
-                                                                pull_request: nil).never
-
-                    watcher.add_push_hook do |push_event, **options|
-                        handler.handle(push_event, options)
-                    end
-
-                    watcher.dispatch_push_event(event)
-                end
-                it "calls push hooks if push is to an open pull request" do
-                    pr = autoproj_daemon_add_pull_request(
+                    @pr = autoproj_daemon_add_pull_request(
                         base_owner: "rock-core",
                         base_name: "drivers-gps_base",
                         number: 1,
@@ -392,7 +347,9 @@ module Autoproj
                         head_sha: "eghijk",
                         state: "open"
                     )
+                end
 
+                it "returns the pull requests for the push events" do
                     event = autoproj_daemon_add_push_event(
                         owner: "contributor",
                         name: "drivers-gps_base",
@@ -400,39 +357,28 @@ module Autoproj
                         head_sha: "eghijk",
                         created_at: Time.now + 2
                     )
-
-                    @cache.add(
-                        pr,
-                        [
-                            "drivers-gps_base" => {
-                                "remote_branch" => "refs/pull/1/merge"
-                            }
-                        ]
-                    )
-
-                    handler = flexmock
-                    handler.should_receive(:handle).with(event, mainline: false,
-                                                                pull_request: pr).once
-
-                    watcher.add_push_hook do |push_event, **options|
-                        handler.handle(push_event, options)
-                    end
-
-                    watcher.dispatch_push_event(event)
+                    events = GithubWatcher::PartitionedEvents.new([], [event], [])
+                    @cache.add(@pr, [])
+                    pull_requests = watcher.process_modified_pull_requests(events)
+                    assert_equal({ @pr => [event] }, pull_requests)
                 end
-                it "does not call push hooks if push is to a closed pull request" do
-                    pr = autoproj_daemon_add_pull_request(
+
+                it "returns the pull requests for the pull request events" do
+                    event = autoproj_daemon_add_pull_request_event(
                         base_owner: "rock-core",
                         base_name: "drivers-gps_base",
-                        number: 1,
                         base_branch: "master",
-                        head_owner: "contributor",
-                        head_name: "drivers-gps_base",
-                        head_branch: "feature",
-                        head_sha: "eghijk",
-                        state: "closed"
+                        state: "open",
+                        number: 1,
+                        created_at: Time.utc(2019, "sep", 22, 23, 53, 35)
                     )
+                    events = GithubWatcher::PartitionedEvents.new([], [], [event])
+                    @cache.add(@pr, [])
+                    pull_requests = watcher.process_modified_pull_requests(events)
+                    assert_equal({ @pr => [event] }, pull_requests)
+                end
 
+                it "ignores push events whose pull request is not yet in cache" do
                     event = autoproj_daemon_add_push_event(
                         owner: "contributor",
                         name: "drivers-gps_base",
@@ -440,88 +386,114 @@ module Autoproj
                         head_sha: "eghijk",
                         created_at: Time.now + 2
                     )
-
-                    @cache.add(
-                        pr,
-                        [
-                            "drivers-gps_base" => {
-                                "remote_branch" => "refs/pull/1/merge"
-                            }
-                        ]
-                    )
-
-                    handler = flexmock
-                    handler.should_receive(:handle).with(event, mainline: false,
-                                                                pull_request: pr).never
-
-                    watcher.add_push_hook do |push_event, **options|
-                        handler.handle(push_event, options)
-                    end
-
-                    watcher.dispatch_push_event(event)
+                    events = GithubWatcher::PartitionedEvents.new([], [event], [])
+                    pull_requests = watcher.process_modified_pull_requests(events)
+                    assert_equal({}, pull_requests)
                 end
-                it "does not call push hooks if push is to a PR that no longer exists" do
-                    pr = autoproj_daemon_add_pull_request(
+
+                it "returns a given pull request only once" do
+                    e0 = autoproj_daemon_add_push_event(
+                        owner: "contributor",
+                        name: "drivers-gps_base",
+                        branch: "feature",
+                        head_sha: "eghijk",
+                        created_at: Time.now + 2
+                    )
+                    e1 = autoproj_daemon_add_pull_request_event(
                         base_owner: "rock-core",
                         base_name: "drivers-gps_base",
-                        number: 1,
                         base_branch: "master",
-                        head_owner: "contributor",
-                        head_name: "drivers-gps_base",
-                        head_branch: "feature",
-                        head_sha: "eghijk",
-                        state: "closed"
+                        state: "open",
+                        number: 1,
+                        created_at: Time.now + 3
                     )
+                    events = GithubWatcher::PartitionedEvents.new([], [e0], [e1])
+                    @cache.add(@pr, [])
+                    pull_requests = watcher.process_modified_pull_requests(events)
+                    assert_equal({ @pr => [e0, e1] }, pull_requests)
+                end
+            end
 
-                    event = autoproj_daemon_add_push_event(
-                        owner: "contributor",
+            describe "#process_modified_mainlines" do
+                before do
+                    @pkg = add_package("drivers/gps_base", "rock-core",
+                                       "drivers-gps_base", "master")
+                    @event = autoproj_daemon_add_push_event(
+                        owner: "rock-core",
                         name: "drivers-gps_base",
-                        branch: "feature",
-                        head_sha: "eghijk",
-                        created_at: Time.now + 2
+                        branch: "master",
+                        head_sha: "efohai",
+                        created_at: Time.now
+                    )
+                end
+
+                it "returns the affected packages" do
+                    autoproj_daemon_add_branch(
+                        "rock-core", "drivers-gps_base",
+                        branch_name: "master", sha: "somethingsomething"
                     )
 
-                    @cache.add(
-                        pr,
-                        [
-                            "drivers-gps_base" => {
-                                "remote_branch" => "feature"
-                            }
-                        ]
+                    events = GithubWatcher::PartitionedEvents.new([@event], [], [])
+                    packages = watcher.process_modified_mainlines(events)
+                    assert_equal({ @pkg => [@event] }, packages)
+                end
+
+                it "returns nothing if the remote branch does not exist" do
+                    events = GithubWatcher::PartitionedEvents.new([@event], [], [])
+                    packages = watcher.process_modified_mainlines(events)
+                    assert packages.empty?
+                end
+
+                it "returns nothing if the current remote SHA matches the package's" do
+                    autoproj_daemon_add_branch(
+                        "rock-core", "drivers-gps_base",
+                        branch_name: "master", sha: @pkg.head_sha
                     )
 
-                    handler = flexmock
-                    handler.should_receive(:handle).with(event, mainline: false,
-                                                                pull_request: pr).never
+                    events = GithubWatcher::PartitionedEvents.new([@event], [], [])
+                    packages = watcher.process_modified_mainlines(events)
+                    assert packages.empty?
+                end
 
-                    watcher.add_push_hook do |push_event, **options|
-                        handler.handle(push_event, options)
-                    end
+                it "returns a package only once" do
+                    event1 = autoproj_daemon_add_push_event(
+                        owner: "rock-core",
+                        name: "drivers-gps_base",
+                        branch: "master",
+                        head_sha: "egedrohigf",
+                        created_at: (Time.now + 1)
+                    )
+                    autoproj_daemon_add_branch(
+                        "rock-core", "drivers-gps_base",
+                        branch_name: "master", sha: "somethingsomething"
+                    )
 
-                    watcher.dispatch_push_event(event)
+                    events = GithubWatcher::PartitionedEvents.new(
+                        [@event, event1], [], []
+                    )
+                    packages = watcher.process_modified_mainlines(events)
+                    assert_equal({ @pkg => [@event, event1] }, packages)
                 end
             end
 
             describe "#handle_owner_events" do
-                before do
-                    @events = []
-                end
-                it "calls the right handler for the kind of event" do
-                    @events << autoproj_daemon_add_push_event(
+                it "partitions events, resolves packages and PRs and forwards them" do
+                    events = []
+                    events << autoproj_daemon_add_push_event(
                         owner: "rock-core",
                         name: "drivers-gps_ublox",
                         branch: "master",
                         head_sha: "1234",
                         created_at: Time.utc(2019, "sep", 22, 23, 53, 35)
                     )
-                    @events << autoproj_daemon_add_push_event(
+                    events << autoproj_daemon_add_push_event(
                         owner: "rock-core",
                         name: "drivers-gps_ublox",
                         branch: "master",
                         head_sha: "abcd",
                         created_at: Time.utc(2019, "sep", 22, 23, 53, 40)
                     )
-                    @events << autoproj_daemon_add_pull_request_event(
+                    events << autoproj_daemon_add_pull_request_event(
                         base_owner: "rock-core",
                         base_name: "drivers-gps_ublox",
                         base_branch: "master",
@@ -529,7 +501,7 @@ module Autoproj
                         number: 1,
                         created_at: Time.utc(2019, "sep", 22, 23, 53, 35)
                     )
-                    @events << autoproj_daemon_add_pull_request_event(
+                    events << autoproj_daemon_add_pull_request_event(
                         base_owner: "rock-core",
                         base_name: "drivers-gps_ublox",
                         base_branch: "master",
@@ -542,232 +514,30 @@ module Autoproj
                         "rock-core", "drivers-gps_ublox",
                         branch_name: "master", sha: "abcd"
                     )
-                    autoproj_daemon_add_pull_request(
+                    pr0 = autoproj_daemon_add_pull_request(
                         base_owner: "rock-core", base_name: "drivers-gps_ublox",
                         base_branch: "master", number: 1, sha: "abcd"
                     )
-                    autoproj_daemon_add_pull_request(
+                    pr1 = autoproj_daemon_add_pull_request(
                         base_owner: "rock-core", base_name: "drivers-gps_ublox",
                         base_branch: "master", number: 2, sha: "abcd"
                     )
-                    add_package("drivers/gps_ublox", "rock-core", "drivers-gps_ublox")
-                    @events[2..3].each { |event| @cache.add(event.pull_request, []) }
-
-                    flexmock(watcher)
-
-                    watcher.should_receive(:dispatch_push_event)
-                           .with(@events[1]).once
-                    watcher.should_receive(:call_pull_request_hooks)
-                           .with(@events[2]).once
-                    watcher.should_receive(:call_pull_request_hooks)
-                           .with(@events[3]).once
-
-                    watcher.handle_owner_events("rock-core", @events)
-                end
-                it "ignores events on third-party repos" do
-                    @events << autoproj_daemon_add_push_event(
-                        owner: "rock-core",
-                        name: "drivers-gps_ublox",
-                        branch: "master",
-                        created_at: Time.utc(2019, "sep", 22, 23, 53, 35)
+                    pkg = add_package(
+                        "drivers/gps_ublox", "rock-core", "drivers-gps_ublox"
                     )
-                    @events << autoproj_daemon_add_pull_request_event(
-                        base_owner: "rock-core",
-                        base_name: "drivers-gps_ublox",
-                        base_branch: "master",
-                        state: "open",
-                        created_at: Time.utc(2019, "sep", 22, 23, 53, 35)
-                    )
+                    events[2..3].each { |event| @cache.add(event.pull_request, []) }
 
-                    add_package("drivers/gps_ublox", "rock-core", "drivers-gps_ublox")
-                    @cache.add(@events[1].pull_request, [])
+                    received_packages, received_pull_requests = nil
+                    watcher.subscribe do |packages, pull_requests|
+                        received_packages = packages
+                        received_pull_requests = pull_requests
+                    end
 
-                    flexmock(watcher)
-                        .should_receive(:handle_push_events)
-                        .with([]).once
+                    watcher.handle_owner_events("rock-core", events)
 
-                    flexmock(watcher)
-                        .should_receive(:handle_pull_request_events)
-                        .with([]).once
-
-                    watcher.handle_owner_events("tidewise", @events)
-                end
-                it "updates the event's SHA using the current branch state" do
-                    ev = autoproj_daemon_add_push_event(
-                        owner: "rock-core",
-                        name: "drivers-gps_ublox",
-                        branch: "master",
-                        head_sha: "1234",
-                        created_at: Time.utc(2019, "sep", 22, 23, 53, 35)
-                    )
-                    @events << ev
-                    autoproj_daemon_add_branch(
-                        "rock-core", "drivers-gps_ublox",
-                        branch_name: "master", sha: "3456"
-                    )
-
-                    add_package("drivers/gps_ublox", "rock-core", "drivers-gps_ublox")
-
-                    expected_ev = ev.dup
-                    expected_ev.head_sha = "3456"
-                    flexmock(watcher)
-                        .should_receive(:handle_push_events)
-                        .with([expected_ev]).once
-
-                    watcher.handle_owner_events("rock-core", @events)
-                end
-            end
-
-            describe "#handle_push_events" do
-                before do
-                    @events = []
-                end
-                it "synthetizes push events containing the latest HEAD" do
-                    @events << autoproj_daemon_add_push_event(
-                        owner: "rock-core",
-                        name: "drivers-gps_ublox",
-                        branch: "master",
-                        created_at: Time.utc(2019, "sep", 22, 23, 53, 35)
-                    )
-                    @events << autoproj_daemon_add_push_event(
-                        owner: "rock-core",
-                        name: "drivers-gps_ublox",
-                        branch: "master",
-                        created_at: Time.utc(2019, "sep", 22, 23, 53, 40)
-                    )
-                    @events << autoproj_daemon_add_push_event(
-                        owner: "rock-core",
-                        name: "drivers-gps_base",
-                        branch: "master",
-                        created_at: Time.utc(2019, "sep", 22, 23, 53, 45)
-                    )
-                    @events << autoproj_daemon_add_push_event(
-                        owner: "rock-core",
-                        name: "drivers-gps_base",
-                        branch: "master",
-                        created_at: Time.utc(2019, "sep", 22, 23, 53, 50)
-                    )
-
-                    autoproj_daemon_add_branch(
-                        "rock-core", "drivers-gps_base",
-                        branch_name: "master", sha: "1234"
-                    )
-                    autoproj_daemon_add_branch(
-                        "rock-core", "drivers-gps_ublox",
-                        branch_name: "master", sha: "abcd"
-                    )
-                    expected_master = @events[1].dup
-                    expected_master.head_sha = "1234"
-                    expected_base = @events[3].dup
-                    expected_base.head_sha = "abcd"
-
-                    flexmock(watcher)
-                    watcher.should_receive(:dispatch_push_event)
-                           .with(expected_master).once
-                    watcher.should_receive(:dispatch_push_event)
-                           .with(expected_base).once
-                    watcher.handle_push_events(@events)
-                end
-            end
-            describe "#handle_pull_request_events" do
-                before do
-                    @events = []
-                end
-                it "synthetizes pull request event from the actual PR states" do
-                    # Register PR#2 in the cache
-                    pr2_open_event = autoproj_daemon_add_pull_request_event(
-                        base_owner: "rock-core",
-                        base_name: "drivers-gps_base",
-                        base_branch: "master",
-                        number: 2,
-                        state: "open",
-                        created_at: Time.utc(2019, "sep", 22, 23, 53, 20)
-                    )
-                    @cache.add(pr2_open_event.pull_request, {})
-
-                    @events << autoproj_daemon_add_pull_request_event(
-                        base_owner: "rock-core",
-                        base_name: "drivers-gps_ublox",
-                        base_branch: "master",
-                        number: 1,
-                        state: "open",
-                        created_at: Time.utc(2019, "sep", 22, 23, 53, 35)
-                    )
-                    @events << autoproj_daemon_add_pull_request_event(
-                        base_owner: "rock-core",
-                        base_name: "drivers-gps_ublox",
-                        base_branch: "master",
-                        number: 1,
-                        state: "closed",
-                        created_at: Time.utc(2019, "sep", 22, 23, 53, 40)
-                    )
-                    @events << autoproj_daemon_add_pull_request_event(
-                        base_owner: "rock-core",
-                        base_name: "drivers-gps_base",
-                        number: 2,
-                        base_branch: "master",
-                        state: "closed",
-                        created_at: Time.utc(2019, "sep", 22, 23, 53, 35)
-                    )
-                    @events << autoproj_daemon_add_pull_request_event(
-                        base_owner: "rock-core",
-                        base_name: "drivers-gps_base",
-                        base_branch: "master",
-                        number: 2,
-                        state: "open",
-                        created_at: Time.utc(2019, "sep", 22, 23, 53, 40)
-                    )
-
-                    autoproj_daemon_add_pull_request(
-                        base_owner: "rock-core", base_name: "drivers-gps_ublox",
-                        base_branch: "master", number: 1, state: "open"
-                    )
-                    autoproj_daemon_add_pull_request(
-                        base_owner: "rock-core", base_name: "drivers-gps_ublox",
-                        base_branch: "master", number: 2, state: "closed"
-                    )
-
-                    expected_pr1 = @events[1].dup
-                    expected_pr1.pull_request.open = true
-                    expected_pr2 = @events[3].dup
-                    expected_pr2.pull_request.open = false
-
-                    flexmock(watcher)
-                    watcher.should_receive(:call_pull_request_hooks)
-                           .with(expected_pr1).once
-                    watcher.should_receive(:call_pull_request_hooks)
-                           .with(expected_pr2).once
-                    watcher.handle_pull_request_events(@events)
-                end
-                it "handles close events of cached PRs" do
-                    @events << autoproj_daemon_add_pull_request_event(
-                        base_owner: "rock-core",
-                        base_name: "drivers-gps_ublox",
-                        base_branch: "master",
-                        number: 1,
-                        state: "closed",
-                        created_at: Time.utc(2019, "sep", 22, 23, 53, 35)
-                    )
-                    @cache.add(@events[0].pull_request, [])
-
-                    flexmock(watcher).should_receive(:call_pull_request_hooks)
-                                     .with(@events[0]).once
-
-                    watcher.handle_pull_request_events(@events)
-                end
-                it "ignores close events of unknown PRs" do
-                    @events << autoproj_daemon_add_pull_request_event(
-                        base_owner: "rock-core",
-                        base_name: "drivers-gps_ublox",
-                        base_branch: "master",
-                        number: 1,
-                        state: "closed",
-                        created_at: Time.utc(2019, "sep", 22, 23, 53, 35)
-                    )
-                    flexmock(watcher).should_receive(:call_pull_request_hooks)
-                                     .with(@events[0]).never
-
-                    watcher.handle_pull_request_events(@events)
+                    assert_equal({ pkg => events[0, 2] }, received_packages)
+                    assert_equal({ pr0 => [events[2]], pr1 => [events[3]] },
+                                 received_pull_requests)
                 end
             end
         end
