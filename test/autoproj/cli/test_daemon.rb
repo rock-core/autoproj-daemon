@@ -601,7 +601,7 @@ module Autoproj
                         .should_receive(:configure).with("daemon_buildbot_port")
                         .at_least.once
                     flexmock(ws.config)
-                        .should_receive(:configure).with("daemon_buildbot_scheduler")
+                        .should_receive(:configure).with("daemon_project")
                         .at_least.once
                     flexmock(ws.config)
                         .should_receive(:configure).with("daemon_max_age")
