@@ -418,9 +418,9 @@ module Autoproj
                                   default: "8010",
                                   doc: "Enter buildbot http port"
 
-                ws.config.declare "daemon_buildbot_scheduler", "string",
-                                  default: "build-force",
-                                  doc: "Enter builbot scheduler name"
+                ws.config.declare "daemon_project", "string",
+                                  default: File.basename(ws.root_dir),
+                                  doc: "Enter the project name"
 
                 ws.config.declare "daemon_max_age", "string",
                                   default: "120",
@@ -448,7 +448,7 @@ module Autoproj
                 config.configure "daemon_polling_period"
                 config.configure "daemon_buildbot_host"
                 config.configure "daemon_buildbot_port"
-                config.configure "daemon_buildbot_scheduler"
+                config.configure "daemon_project"
                 config.configure "daemon_max_age"
                 save_configuration
             end
