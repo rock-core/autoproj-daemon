@@ -163,9 +163,11 @@ module Autoproj
                 # @param [Boolean] organization
                 # @return [void]
                 def events_for(owner, organization: false)
-                    return @client.user_events(owner) unless organization
+                    with_retry do
+                        return @client.user_events(owner) unless organization
 
-                    @client.organization_events(owner)
+                        @client.organization_events(owner)
+                    end
                 end
             end
         end
