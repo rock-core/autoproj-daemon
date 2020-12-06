@@ -50,6 +50,8 @@ module Autoproj
                         retry
                     end
                     raise
+                rescue Octokit::TooManyRequests
+                    retry
                 end
 
                 # @return [Array<PullRequest>]

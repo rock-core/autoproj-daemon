@@ -71,6 +71,7 @@ module Autoproj
 
                 it "retries on connection failure" do
                     runs = 0
+                    flexmock(client).should_receive(:check_rate_limit_and_wait)
                     assert_raises Faraday::ConnectionFailed do
                         client.with_retry(1) do
                             runs += 1
@@ -78,6 +79,17 @@ module Autoproj
                         end
                     end
                     assert_equal 2, runs
+                end
+
+                it "retries on rate limiting error" do
+                    runs = 0
+                    flexmock(client).should_receive(:check_rate_limit_and_wait)
+                                    .times(5)
+                    client.with_retry(1) do
+                        runs += 1
+                        raise Octokit::TooManyRequests.new, "rate limit" if runs < 5
+                    end
+                    assert_equal 5, runs
                 end
 
                 it "returns a human readable time" do
