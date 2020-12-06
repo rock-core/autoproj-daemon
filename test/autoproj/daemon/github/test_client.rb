@@ -113,7 +113,7 @@ module Autoproj
                     @client = Client.new
                     rate_limit.should_receive(:remaining).and_return(0)
                     rate_limit.should_receive(:resets_in).and_return(15)
-                    flexmock(client).should_receive(:sleep).explicitly.with(15).once
+                    flexmock(client).should_receive(:sleep).explicitly.with(16).once
                     client.check_rate_limit_and_wait
                 end
             end

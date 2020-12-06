@@ -32,7 +32,7 @@ module Autoproj
                 def check_rate_limit_and_wait
                     return if @client.rate_limit!.remaining > 0
 
-                    wait_for = @client.rate_limit.resets_in
+                    wait_for = @client.rate_limit.resets_in + 1
                     Autoproj.message "API calls rate limit exceeded, waiting for "\
                                      "#{humanize_time(wait_for)}"
                     sleep wait_for
