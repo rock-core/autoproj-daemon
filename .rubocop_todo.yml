@@ -17,6 +17,7 @@ Gemspec/RequiredRubyVersion:
 # Configuration parameters: IgnoredMethods, Max.
 Metrics/AbcSize:
   Exclude:
+    - 'lib/autoproj/cli/main_daemon.rb'
     - 'lib/autoproj/cli/daemon.rb'
     - 'lib/autoproj/daemon/buildbot.rb'
     - 'lib/autoproj/daemon/buildconf_manager.rb'
