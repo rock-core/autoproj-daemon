@@ -11,6 +11,7 @@ module Autoproj
             describe PushEvent do
                 attr_reader :push_event
                 attr_reader :model
+
                 before do
                     @model = JSON.parse(
                         File.read(File.expand_path("push_event.json", __dir__))

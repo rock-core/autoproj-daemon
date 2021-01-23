@@ -13,10 +13,7 @@ module Autoproj
         # push hooks and pull request hooks. Whenever an event is detected on a
         # watched repository the corresponding hook is called.
         class GithubWatcher
-            attr_reader :cache
-            attr_reader :client
-            attr_reader :packages
-            attr_reader :ws
+            attr_reader :cache, :client, :packages, :ws
 
             # @param [Github::Client] client The github API wrapper
             # @param [Array<PackageRepository>] packages Watched packages

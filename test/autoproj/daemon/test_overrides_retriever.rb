@@ -12,6 +12,7 @@ module Autoproj
             attr_reader :retriever
 
             attr_reader :client
+
             include Autoproj::Daemon::TestHelpers
             before do
                 autoproj_daemon_mock_github_api

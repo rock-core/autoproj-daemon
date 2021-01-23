@@ -11,6 +11,7 @@ module Autoproj
             describe Branch do
                 attr_reader :branch
                 attr_reader :model
+
                 before do
                     @model = JSON.parse(
                         File.read(File.expand_path("branch.json", __dir__))

@@ -10,6 +10,7 @@ module Autoproj
         describe PackageRepository do
             attr_reader :package
             attr_reader :ws
+
             before do
                 @ws = ws_create
                 @package = PackageRepository.new(

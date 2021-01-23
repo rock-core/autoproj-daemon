@@ -12,6 +12,7 @@ module Autoproj
         module Github
             describe Client do
                 attr_reader :client
+
                 before do
                     skip if ENV["AUTOPROJ_SKIP_GITHUB_API_TESTS"]
                     @client = Client.new(auto_paginate: false)
