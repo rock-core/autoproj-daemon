@@ -17,12 +17,8 @@ module Autoproj
         class GithubStorage
             RateLimit = Struct.new(:remaining)
 
-            attr_reader :rate_limit
-            attr_reader :pull_requests
-            attr_reader :branches
-            attr_reader :users
-            attr_reader :organization_events
-            attr_reader :user_events
+            attr_reader :rate_limit, :pull_requests, :branches, :users,
+                        :organization_events, :user_events
 
             def initialize
                 @rate_limit = RateLimit.new(1000)

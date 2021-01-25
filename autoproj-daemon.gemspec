@@ -13,6 +13,7 @@ Gem::Specification.new do |spec| # rubocop:disable Metrics/BlockLength
     spec.homepage      = "https://github.com/rock-core/autoproj-daemon"
     spec.summary       = "daemon-plugin that watches github repositories"
     spec.license       = "BSD 3-Clause"
+    spec.required_ruby_version = ">= 2.4"
 
     # Prevent pushing this gem to RubyGems.org. To allow pushes either set the
     # 'allowed_push_host' to allow pushing to a single host or delete this
@@ -39,6 +40,6 @@ Gem::Specification.new do |spec| # rubocop:disable Metrics/BlockLength
     spec.add_development_dependency "flexmock"
     spec.add_development_dependency "minitest", "~> 5.0"
     spec.add_development_dependency "rake"
-    spec.add_development_dependency "rubocop"
+    spec.add_development_dependency "rubocop", "~> 0.83.0"
     spec.add_development_dependency "timecop"
 end

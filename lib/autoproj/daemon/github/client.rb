@@ -30,9 +30,9 @@ module Autoproj
 
                 # @return [void]
                 def check_rate_limit_and_wait
-                    return if @client.rate_limit!.remaining > 0
+                    return if @client.rate_limit.remaining > 0
 
-                    wait_for = @client.rate_limit.resets_in
+                    wait_for = @client.rate_limit.resets_in + 1
                     Autoproj.message "API calls rate limit exceeded, waiting for "\
                                      "#{humanize_time(wait_for)}"
                     sleep wait_for
@@ -50,6 +50,8 @@ module Autoproj
                         retry
                     end
                     raise
+                rescue Octokit::TooManyRequests
+                    retry
                 end
 
                 # @return [Array<PullRequest>]
@@ -161,9 +163,11 @@ module Autoproj
                 # @param [Boolean] organization
                 # @return [void]
                 def events_for(owner, organization: false)
-                    return @client.user_events(owner) unless organization
+                    with_retry do
+                        return @client.user_events(owner) unless organization
 
-                    @client.organization_events(owner)
+                        @client.organization_events(owner)
+                    end
                 end
             end
         end

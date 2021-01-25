@@ -12,6 +12,7 @@ module Autoproj
         module Github
             describe Client do
                 attr_reader :client
+
                 before do
                     skip if ENV["AUTOPROJ_SKIP_GITHUB_API_TESTS"]
                     @client = Client.new(auto_paginate: false)
@@ -71,6 +72,7 @@ module Autoproj
 
                 it "retries on connection failure" do
                     runs = 0
+                    flexmock(client).should_receive(:check_rate_limit_and_wait)
                     assert_raises Faraday::ConnectionFailed do
                         client.with_retry(1) do
                             runs += 1
@@ -78,6 +80,17 @@ module Autoproj
                         end
                     end
                     assert_equal 2, runs
+                end
+
+                it "retries on rate limiting error" do
+                    runs = 0
+                    flexmock(client).should_receive(:check_rate_limit_and_wait)
+                                    .times(5)
+                    client.with_retry(1) do
+                        runs += 1
+                        raise Octokit::TooManyRequests.new, "rate limit" if runs < 5
+                    end
+                    assert_equal 5, runs
                 end
 
                 it "returns a human readable time" do
@@ -94,14 +107,10 @@ module Autoproj
                                              .should_receive(:rate_limit)
                                              .and_return(rate_limit)
 
-                    flexmock(Octokit::Client).new_instances
-                                             .should_receive(:rate_limit!)
-                                             .and_return(rate_limit)
-
                     @client = Client.new
                     rate_limit.should_receive(:remaining).and_return(0)
                     rate_limit.should_receive(:resets_in).and_return(15)
-                    flexmock(client).should_receive(:sleep).explicitly.with(15).once
+                    flexmock(client).should_receive(:sleep).explicitly.with(16).once
                     client.check_rate_limit_and_wait
                 end
             end

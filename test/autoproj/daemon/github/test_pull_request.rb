@@ -11,6 +11,7 @@ module Autoproj
             describe PullRequest do
                 attr_reader :pull_request
                 attr_reader :model
+
                 before do
                     @model = JSON.parse(
                         File.read(File.expand_path("pull_request.json", __dir__))

@@ -13,6 +13,7 @@ module Autoproj
     module CLI
         describe Daemon do
             attr_reader :cli
+
             include Autoproj::Daemon::TestHelpers
 
             before do

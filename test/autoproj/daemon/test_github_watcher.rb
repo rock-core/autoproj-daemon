@@ -13,6 +13,7 @@ module Autoproj
     module Daemon
         describe GithubWatcher do
             attr_reader :watcher
+
             include Autoproj::Daemon::TestHelpers
 
             before do
