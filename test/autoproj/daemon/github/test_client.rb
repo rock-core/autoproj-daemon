@@ -107,10 +107,6 @@ module Autoproj
                                              .should_receive(:rate_limit)
                                              .and_return(rate_limit)
 
-                    flexmock(Octokit::Client).new_instances
-                                             .should_receive(:rate_limit!)
-                                             .and_return(rate_limit)
-
                     @client = Client.new
                     rate_limit.should_receive(:remaining).and_return(0)
                     rate_limit.should_receive(:resets_in).and_return(15)
