@@ -1,3 +1,5 @@
+[![Build Status](https://github.com/rock-core/autoproj-daemon/workflows/tests/badge.svg?branch=master)](https://github.com/rock-core/autoproj-daemon/actions?query=workflow%3Atests)
+
 # Autoproj::Daemon
 
 
