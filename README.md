@@ -1,3 +1,5 @@
+! [tests]&nbsp;(https://github.com/rock-core/autoproj-daemon/workflows/tests/badge.svg?branch=master)
+
 # Autoproj::Daemon
 
 
