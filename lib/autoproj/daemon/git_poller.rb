@@ -34,6 +34,9 @@ module Autoproj
             # @return [Array<Github::Branch>]
             attr_reader :branches
 
+            # @return [Array<Github::Branch>]
+            attr_reader :package_branches
+
             # @return [Array<Github::PullRequest>]
             attr_reader :pull_requests
 
@@ -60,18 +63,70 @@ module Autoproj
                 @pull_requests = []
                 @pull_requests_stale = []
                 @branches = []
+                @package_branches = []
                 @ws = workspace
                 @main = @buildconf.autobuild
                 @importer = @main.importer
                 @cache = cache
             end
 
-            # @return [Array<Github::PullRequest>]
-            def update_pull_requests
-                filtered_repos = packages.uniq do |pkg|
+            # @return [Array<Autoproj::Daemon::PackageRepository>]
+            def unique_packages
+                packages.uniq do |pkg|
                     [pkg.owner, pkg.name, pkg.branch]
                 end
+            end
 
+            # @return [Array<Github::Branch>]
+            def update_package_branches
+                filtered_repos = unique_packages
+                Autoproj.message "Fetching branches from "\
+                    "#{filtered_repos.size} repositories..."
+
+                @package_branches = filtered_repos.flat_map do |pkg|
+                    client.branch(pkg.owner, pkg.name, pkg.branch)
+                end
+
+                Autoproj.message "Tracking #{package_branches.size} branches"
+                package_branches
+            end
+
+            # @param [Github::Branch] branch
+            # @return [Array<Autoproj::Daemon::PackageRepository>]
+            def packages_by_branch(branch)
+                packages.select do |pkg|
+                    pkg.name == branch.name &&
+                        pkg.owner == branch.owner &&
+                        pkg.branch == branch.branch_name
+                end
+            end
+
+            # @return [void]
+            def trigger_build_if_mainline_changed
+                package_branches.each do |branch|
+                    pkgs = packages_by_branch(branch)
+                    pkgs.each do |pkg|
+                        handle_package_changes(pkg) if pkg.head_sha != branch.sha
+                    end
+                end
+
+                buildconf_branch = client.branch(
+                    buildconf.owner, buildconf.name, buildconf.branch
+                )
+
+                handle_buildconf_changes if buildconf.head_sha != buildconf_branch.sha
+            end
+
+            # @param [Autoproj::Daemon::PackageRepository] pkg
+            # @return [void]
+            def handle_package_changes(pkg); end
+
+            # @return [void]
+            def handle_buildconf_changes; end
+
+            # @return [Array<Github::PullRequest>]
+            def update_pull_requests
+                filtered_repos = unique_packages
                 Autoproj.message "Fetching pull requests from "\
                     "#{filtered_repos.size} repositories..."
 

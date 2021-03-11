@@ -36,8 +36,15 @@ module Autoproj
             end
 
             def add_package(pkg_name, owner, name, vcs = {})
-                package = PackageRepository.new(pkg_name, owner, name, vcs)
+                local_dir = File.join(ws.root_dir, pkg_name)
+                autoproj_daemon_git_init(pkg_name)
+
+                package = PackageRepository.new(
+                    pkg_name, owner, name, vcs, local_dir: local_dir
+                )
+
                 @packages << package
+                package
             end
             describe "#update_pull_requests" do
                 it "does not poll same repository twice" do
@@ -110,6 +117,214 @@ module Autoproj
                     assert_equal [], @manager.update_pull_requests
                     assert_equal [], @manager.pull_requests
                     assert_equal [pr], @manager.pull_requests_stale
+                end
+            end
+
+            describe "#update_package_branches" do
+                it "returns an array with the current branches" do
+                    branches = []
+                    branches << autoproj_daemon_add_branch(
+                        "rock-drivers",
+                        "drivers-iodrivers_base",
+                        branch_name: "devel",
+                        sha: "ghijkl"
+                    )
+
+                    branches << autoproj_daemon_add_branch(
+                        "rock-drivers",
+                        "drivers-iodrivers_base",
+                        branch_name: "master",
+                        sha: "abcdef"
+                    )
+
+                    add_package(
+                        "drivers/iodrivers_base",
+                        "rock-drivers",
+                        "drivers-iodrivers_base",
+                        branch: "devel"
+                    )
+
+                    add_package(
+                        "drivers/iodrivers_base2",
+                        "rock-drivers",
+                        "drivers-iodrivers_base",
+                        branch: "devel"
+                    )
+
+                    add_package(
+                        "drivers/iodrivers_base3",
+                        "rock-drivers",
+                        "drivers-iodrivers_base",
+                        branch: "master"
+                    )
+
+                    assert_equal branches, @manager.update_package_branches
+                    assert_equal branches, @manager.package_branches
+                end
+            end
+
+            describe "#update_package_branches" do
+                it "returns packages that use the given branch" do
+                    branches = []
+                    branches << autoproj_daemon_add_branch(
+                        "rock-drivers",
+                        "drivers-iodrivers_base",
+                        branch_name: "devel",
+                        sha: "ghijkl"
+                    )
+
+                    branches << autoproj_daemon_add_branch(
+                        "rock-drivers",
+                        "drivers-iodrivers_base",
+                        branch_name: "master",
+                        sha: "abcdef"
+                    )
+
+                    iodrivers_base = add_package(
+                        "drivers/iodrivers_base",
+                        "rock-drivers",
+                        "drivers-iodrivers_base",
+                        branch: "devel"
+                    )
+
+                    iodrivers_base2 = add_package(
+                        "drivers/iodrivers_base2",
+                        "rock-drivers",
+                        "drivers-iodrivers_base",
+                        branch: "devel"
+                    )
+
+                    add_package(
+                        "drivers/iodrivers_base3",
+                        "rock-drivers",
+                        "drivers-iodrivers_base",
+                        branch: "master"
+                    )
+
+                    @manager.update_package_branches
+                    packages = @manager.packages_by_branch(branches.first)
+
+                    assert_equal packages.first, iodrivers_base
+                    assert_equal packages.last, iodrivers_base2
+                    assert_equal 2, packages.size
+                end
+            end
+
+            describe "#trigger_build_if_mainline_changed" do
+                describe "buildconf not changed" do
+                    before do
+                        autoproj_daemon_add_branch(
+                            "rock-core",
+                            "buildconf",
+                            branch_name: "master",
+                            sha: @manager.buildconf.head_sha
+                        )
+                    end
+
+                    it "does not trigger a build if heads didn't change" do
+                        iodrivers_base = add_package(
+                            "drivers/iodrivers_base",
+                            "rock-drivers",
+                            "drivers-iodrivers_base",
+                            branch: "devel"
+                        )
+
+                        autoproj_daemon_add_branch(
+                            "rock-drivers",
+                            "drivers-iodrivers_base",
+                            branch_name: "devel",
+                            sha: iodrivers_base.head_sha
+                        )
+
+                        flexmock(@manager)
+                            .should_receive(:handle_package_changes)
+                            .with(any)
+                            .never
+
+                        flexmock(@manager)
+                            .should_receive(:handle_buildconf_changes)
+                            .never
+
+                        @manager.update_package_branches
+                        @manager.trigger_build_if_mainline_changed
+                    end
+
+                    it "triggers build on packages affected by a mainline change" do
+                        iodrivers_base = add_package(
+                            "drivers/iodrivers_base",
+                            "rock-drivers",
+                            "drivers-iodrivers_base",
+                            branch: "devel"
+                        )
+
+                        iodrivers_base2 = add_package(
+                            "drivers/iodrivers_base2",
+                            "rock-drivers",
+                            "drivers-iodrivers_base",
+                            branch: "devel"
+                        )
+
+                        iodrivers_base3 = add_package(
+                            "drivers/iodrivers_base3",
+                            "rock-drivers",
+                            "drivers-iodrivers_base",
+                            branch: "master"
+                        )
+
+                        autoproj_daemon_add_branch(
+                            "rock-drivers",
+                            "drivers-iodrivers_base",
+                            branch_name: "devel",
+                            sha: "abcdef"
+                        )
+
+                        autoproj_daemon_add_branch(
+                            "rock-drivers",
+                            "drivers-iodrivers_base",
+                            branch_name: "master",
+                            sha: iodrivers_base3.head_sha
+                        )
+
+                        flexmock(@manager)
+                            .should_receive(:handle_package_changes)
+                            .with(iodrivers_base)
+                            .once
+
+                        flexmock(@manager)
+                            .should_receive(:handle_package_changes)
+                            .with(iodrivers_base2)
+                            .once
+
+                        flexmock(@manager)
+                            .should_receive(:handle_package_changes)
+                            .with(iodrivers_base3)
+                            .never
+
+                        flexmock(@manager)
+                            .should_receive(:handle_buildconf_changes)
+                            .never
+
+                        @manager.update_package_branches
+                        @manager.trigger_build_if_mainline_changed
+                    end
+                end
+
+                describe "buildconf changed" do
+                    before do
+                        autoproj_daemon_add_branch(
+                            "rock-core",
+                            "buildconf",
+                            branch_name: "master",
+                            sha: "abcdef"
+                        )
+                    end
+
+                    it "properly handles a buildconf change" do
+                        flexmock(@manager).should_receive(:handle_buildconf_changes).once
+
+                        @manager.update_package_branches
+                        @manager.trigger_build_if_mainline_changed
+                    end
                 end
             end
 

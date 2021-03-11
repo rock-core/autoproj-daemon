@@ -54,9 +54,7 @@ module Autoproj
 
             # @return [String]
             def head_sha
-                pkg = autobuild
-                pkg.importdir ||= local_dir
-                pkg.importer.current_remote_commit(pkg, only_local: true)
+                `git -C #{local_dir} rev-parse HEAD`.strip
             end
 
             # @return [Autobuild::Package]

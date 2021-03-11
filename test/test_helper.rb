@@ -46,6 +46,10 @@ module Autoproj
                 @storage.branches[repo]
             end
 
+            def branch(repo, name, _options = {})
+                @storage.branches[repo].find { |branch| branch["name"] == name }
+            end
+
             def user(user, _options = {})
                 @storage.users[user]
             end
