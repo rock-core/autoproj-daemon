@@ -6,7 +6,6 @@ require "autoproj/daemon/github/branch"
 require "autoproj/daemon/buildbot"
 require "autoproj/daemon/buildconf_manager"
 require "autoproj/daemon/pull_request_cache"
-require "autoproj/daemon/github_watcher"
 require "octokit"
 
 module Autoproj
@@ -26,8 +25,6 @@ module Autoproj
             attr_reader :cache
             # @return [Autoproj::Daemon::Github::Client]
             attr_reader :client
-            # @return [Autoproj::Daemon::GithubWatcher]
-            attr_reader :watcher
             # @return [Autoproj::Workspace]
             attr_reader :ws
             # @return [String]
@@ -255,15 +252,6 @@ module Autoproj
                 )
             end
 
-            # Subscribe to GitHub events using {#watcher}
-            #
-            # @return [void]
-            def setup_hooks
-                watcher.subscribe do |packages, pull_requests|
-                    handle_modifications(packages, pull_requests)
-                end
-            end
-
             # Return the list of packages in the current state of the workspace
             #
             # This list is computed only once, and then memoized
@@ -353,14 +341,6 @@ module Autoproj
                     ws,
                     project: @project
                 )
-                @watcher = Autoproj::Daemon::GithubWatcher.new(
-                    client,
-                    packages + [buildconf_package],
-                    cache,
-                    ws
-                )
-
-                setup_hooks
             end
 
             # Starts watching the whole workspace
@@ -369,7 +349,6 @@ module Autoproj
             def start
                 prepare
                 buildconf_manager.synchronize_branches unless update_failed?
-                watcher.watch
             end
 
             # Updates the current workspace. This method will invoke the CLI

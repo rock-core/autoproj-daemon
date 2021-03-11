@@ -3,7 +3,6 @@
 require "test_helper"
 require "autoproj/cli/update"
 require "autoproj/daemon/package_repository"
-require "autoproj/daemon/github_watcher"
 require "octokit"
 require "rubygems/package"
 require "time"
@@ -527,26 +526,6 @@ module Autoproj
                         )
                         assert cli.cache.changed?(@pull_request, @overrides)
                     end
-                end
-            end
-
-            describe "#setup_hooks" do
-                it "subscribes to the github watcher" do
-                    watcher = flexmock
-                    flexmock(cli).should_receive(:watcher).and_return(watcher)
-
-                    # Eventhough 'add_*_hook don't yield, making the mocked versions
-                    # of these methods yield here is useful to test not only that
-                    # setup_hooks calls the proper methods to add the hooks but also
-                    # that the blocks do what they are expected to do (call handle_*_event
-                    # in this case).
-                    watcher.should_receive(:subscribe)
-                           .and_yield(a = flexmock, b = flexmock)
-
-                    flexmock(cli).should_receive(:handle_modifications)
-                                 .with(a, b).once
-
-                    cli.setup_hooks
                 end
             end
 
