@@ -37,7 +37,7 @@ module Autoproj
                 assert_equal "somename", cli.bb.project
                 ws.config.set "daemon_api_key", "something", true
                 cli.prepare
-                assert_equal "somename", cli.buildconf_manager.bb.project
+                assert_equal "somename", cli.git_poller.bb.project
             end
 
             it "appends the manifest name if it is not mainline" do
@@ -47,7 +47,7 @@ module Autoproj
                 assert_equal "somename_subsystem", cli.bb.project
                 ws.config.set "daemon_api_key", "something", true
                 cli.prepare
-                assert_equal "somename_subsystem", cli.buildconf_manager.bb.project
+                assert_equal "somename_subsystem", cli.git_poller.bb.project
             end
             describe "#resolve_packages" do
                 it "returns an array of all packages and package sets" do
@@ -349,7 +349,7 @@ module Autoproj
                     cli.cache.add(pr_cached, [])
 
                     flexmock(cli.bb).should_receive(:post_change).never
-                    flexmock(cli.buildconf_manager)
+                    flexmock(cli.git_poller)
                         .should_receive(:commit_and_push_overrides).never
 
                     cli.handle_modifications({}, { pr => [event] })
@@ -358,7 +358,7 @@ module Autoproj
                     cli.cache.add(@pull_request, @overrides)
 
                     flexmock(cli.bb).should_receive(:post_change).never
-                    flexmock(cli.buildconf_manager)
+                    flexmock(cli.git_poller)
                         .should_receive(:commit_and_push_overrides).never
 
                     cli.handle_modifications({}, { @pull_request => [@push_event] })
@@ -366,7 +366,7 @@ module Autoproj
                 it "updates buildconf branch and cache if PR changed" do
                     cli.cache.add(@pull_request, [])
 
-                    flexmock(cli.buildconf_manager)
+                    flexmock(cli.git_poller)
                         .should_receive(:commit_and_push_overrides).once
 
                     flexmock(cli.bb).should_receive(:post_pull_request_changes)
@@ -449,7 +449,7 @@ module Autoproj
                     it "does not update buildconf branch if the PR did not change" do
                         cli.cache.add(@pull_request, @overrides)
 
-                        flexmock(cli.buildconf_manager)
+                        flexmock(cli.git_poller)
                             .should_receive(:commit_and_push_overrides)
                             .never
 
@@ -463,7 +463,7 @@ module Autoproj
                         flexmock(cli.bb).should_receive(:post_pull_request_changes)
                                         .with(@pull_request).once
 
-                        flexmock(cli.buildconf_manager)
+                        flexmock(cli.git_poller)
                             .should_receive(:commit_and_push_overrides).once
 
                         cli.handle_modifications(

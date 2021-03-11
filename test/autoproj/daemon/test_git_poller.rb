@@ -6,7 +6,7 @@ require "test_helper"
 module Autoproj
     # Main daemon module
     module Daemon
-        describe BuildconfManager do
+        describe GitPoller do
             include Autoproj::Daemon::TestHelpers
 
             before do
@@ -29,7 +29,7 @@ module Autoproj
                     ws: ws
                 )
 
-                @manager = BuildconfManager.new(
+                @manager = GitPoller.new(
                     @buildconf, @client, @packages, @cache, @ws,
                     project: "myproject"
                 )

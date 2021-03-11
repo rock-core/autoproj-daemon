@@ -15,7 +15,7 @@ module Autoproj
         # This class synchronizes the automatically created branches
         # representing open Pull Requests to the actual Pull Requests
         # on each watched repository
-        class BuildconfManager
+        class GitPoller
             # @return [Autoproj::Daemon::Buildbot]
             attr_reader :bb
 

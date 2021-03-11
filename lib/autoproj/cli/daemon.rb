@@ -4,7 +4,7 @@ require "autoproj/cli/update"
 require "autoproj/daemon/github/client"
 require "autoproj/daemon/github/branch"
 require "autoproj/daemon/buildbot"
-require "autoproj/daemon/buildconf_manager"
+require "autoproj/daemon/git_poller"
 require "autoproj/daemon/pull_request_cache"
 require "octokit"
 
@@ -19,8 +19,8 @@ module Autoproj
         class Daemon
             # @return [Autoproj::Daemon::Buildbot]
             attr_reader :bb
-            # @return [Autoproj::Daemon::BuildconfManager]
-            attr_reader :buildconf_manager
+            # @return [Autoproj::Daemon::GitPoller]
+            attr_reader :git_poller
             # @return [Autoproj::Daemon::PullRequestCache]
             attr_reader :cache
             # @return [Autoproj::Daemon::Github::Client]
@@ -190,11 +190,11 @@ module Autoproj
             # @param [Daemon::Github::PullRequest] pull_request
             # @return [void]
             def handle_pull_request_changes(pull_request)
-                overrides = buildconf_manager.overrides_for_pull_request(pull_request)
+                overrides = git_poller.overrides_for_pull_request(pull_request)
                 return unless cache.changed?(pull_request, overrides)
 
                 branch_name = branch_name_by_pull_request(pull_request)
-                buildconf_manager.commit_and_push_overrides(branch_name, overrides)
+                git_poller.commit_and_push_overrides(branch_name, overrides)
                 cache.add(pull_request, overrides)
 
                 Autoproj.message "Push detected on #{pull_request.base_owner}/"\
@@ -212,12 +212,12 @@ module Autoproj
             # @return [void]
             def handle_pull_request_opened(pull_request)
                 branch_name = branch_name_by_pull_request(pull_request)
-                overrides = buildconf_manager.overrides_for_pull_request(pull_request)
+                overrides = git_poller.overrides_for_pull_request(pull_request)
 
                 Autoproj.message "Creating branch #{branch_name} "\
                     "on #{buildconf_package.owner}/#{buildconf_package.name}"
 
-                buildconf_manager.commit_and_push_overrides(branch_name, overrides)
+                git_poller.commit_and_push_overrides(branch_name, overrides)
                 bb.post_pull_request_changes(pull_request)
 
                 cache.add(pull_request, overrides)
@@ -333,7 +333,7 @@ module Autoproj
                     auto_paginate: true
                 )
 
-                @buildconf_manager = Autoproj::Daemon::BuildconfManager.new(
+                @git_poller = Autoproj::Daemon::GitPoller.new(
                     buildconf_package,
                     client,
                     packages,
@@ -348,7 +348,7 @@ module Autoproj
             # @return [void]
             def start
                 prepare
-                buildconf_manager.synchronize_branches unless update_failed?
+                git_poller.synchronize_branches unless update_failed?
             end
 
             # Updates the current workspace. This method will invoke the CLI
@@ -438,7 +438,7 @@ module Autoproj
             # @param [Autoproj::Daemon::Github::PullRequest] pull_request
             # @return [String]
             def branch_name_by_pull_request(pull_request)
-                Autoproj::Daemon::BuildconfManager.branch_name_by_pull_request(
+                Autoproj::Daemon::GitPoller.branch_name_by_pull_request(
                     @project, pull_request
                 )
             end

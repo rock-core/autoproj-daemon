@@ -53,7 +53,7 @@ module Autoproj
                 base_repository =
                     "https://github.com/#{pull_request.base_owner}/"\
                     "#{pull_request.base_name}"
-                branch_name = BuildconfManager.branch_name_by_pull_request(
+                branch_name = GitPoller.branch_name_by_pull_request(
                     @project, pull_request
                 )
 

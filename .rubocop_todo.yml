@@ -20,7 +20,7 @@ Metrics/AbcSize:
     - 'lib/autoproj/cli/main_daemon.rb'
     - 'lib/autoproj/cli/daemon.rb'
     - 'lib/autoproj/daemon/buildbot.rb'
-    - 'lib/autoproj/daemon/buildconf_manager.rb'
+    - 'lib/autoproj/daemon/git_poller.rb'
     - 'lib/autoproj/daemon/overrides_retriever.rb'
     - 'test/test_helper.rb'
 
@@ -35,7 +35,7 @@ Metrics/CyclomaticComplexity:
 Metrics/ParameterLists:
   Exclude:
     - 'lib/autoproj/daemon/buildbot.rb'
-    - 'lib/autoproj/daemon/buildconf_manager.rb'
+    - 'lib/autoproj/daemon/git_poller.rb'
 
 # Offense count: 2
 # Configuration parameters: IgnoredMethods, Max.
