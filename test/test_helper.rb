@@ -17,16 +17,13 @@ module Autoproj
         class GithubStorage
             RateLimit = Struct.new(:remaining)
 
-            attr_reader :rate_limit, :pull_requests, :branches, :users,
-                        :organization_events, :user_events
+            attr_reader :rate_limit, :pull_requests, :branches, :users
 
             def initialize
                 @rate_limit = RateLimit.new(1000)
                 @pull_requests = Hash.new { |h, k| h[k] = [] }
                 @branches = Hash.new { |h, k| h[k] = [] }
                 @users = Hash.new { |h, k| h[k] = {} }
-                @organization_events = Hash.new { |h, k| h[k] = [] }
-                @user_events = Hash.new { |h, k| h[k] = [] }
             end
         end
 
@@ -52,14 +49,6 @@ module Autoproj
 
             def user(user, _options = {})
                 @storage.users[user]
-            end
-
-            def user_events(user, _options = {})
-                @storage.user_events[user]
-            end
-
-            def organization_events(organization, _options = {})
-                @storage.organization_events[organization]
             end
 
             def rate_limit
@@ -196,14 +185,6 @@ module Autoproj
                 @storage.users[user] = JSON.parse(options.to_json)
             end
 
-            def autoproj_daemon_add_event(owner, model)
-                if @storage.users[owner]["type"] == "Organization"
-                    @storage.organization_events[owner] << model
-                else
-                    @storage.user_events[owner] << model
-                end
-            end
-
             def autoproj_daemon_add_package_set(name, vcs)
                 pkg_set = Autoproj::PackageSet.new(
                     ws,
@@ -227,25 +208,6 @@ module Autoproj
                     pkg_set.raw_local_dir,
                     pkg_set.user_local_dir
                 )
-            end
-
-            def autoproj_daemon_add_push_event(**options)
-                event = Autoproj::Daemon::Github::PushEvent.from_ruby_hash(
-                    repo: {
-                        name: "#{options[:owner]}/#{options[:name]}"
-                    },
-                    payload: {
-                        head: options[:head_sha],
-                        ref: "refs/heads/#{options[:branch]}"
-                    },
-                    actor: {
-                        login: options[:author]
-                    },
-                    created_at: options[:created_at] || Time.now
-                )
-
-                autoproj_daemon_add_event(event.owner, event.model)
-                event
             end
 
             def autoproj_daemon_create_pull_request(options)
@@ -276,25 +238,6 @@ module Autoproj
                         }
                     }
                 )
-            end
-
-            def autoproj_daemon_add_pull_request_event(**options)
-                pr = options[:pull_request] || autoproj_daemon_create_pull_request(
-                    base_owner: options[:base_owner],
-                    base_name: options[:base_name],
-                    base_branch: options[:base_branch],
-                    state: options[:state],
-                    number: options[:number]
-                )
-                event = Autoproj::Daemon::Github::PullRequestEvent.from_ruby_hash(
-                    payload: {
-                        pull_request: pr.instance_variable_get(:@model)
-                    },
-                    created_at: options[:created_at]
-                )
-
-                autoproj_daemon_add_event(pr.base_owner, event.model)
-                event
             end
 
             def autoproj_daemon_add_pull_request(**options)

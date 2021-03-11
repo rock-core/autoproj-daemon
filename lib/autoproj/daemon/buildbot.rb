@@ -5,7 +5,6 @@ require "net/http"
 require "uri"
 require "json"
 require "autoproj/daemon/github/pull_request"
-require "autoproj/daemon/github/push_event"
 
 module Autoproj
     module Daemon

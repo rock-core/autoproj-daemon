@@ -37,39 +37,6 @@ module Autoproj
                     assert Time, client.last_response_time.class
                 end
 
-                it "returns a compact Array of events" do
-                    events = [
-                        { "type" => "PushEvent" },
-                        { "type" => "PullRequestEvent" },
-                        { "type" => "CreateEvent" }
-                    ]
-
-                    flexmock(Octokit::Client).new_instances.should_receive(:user_events)
-                                             .with("rock-core").and_return(events)
-
-                    @client = Client.new(auto_paginate: false)
-                    fetched_events = client.fetch_events("rock-core")
-                    assert_equal 2, fetched_events.size
-                    assert_kind_of PushEvent, fetched_events.first
-                    assert_kind_of PullRequestEvent, fetched_events.last
-                end
-
-                it "uses the proper api endpoint to fetch events" do
-                    flexmock(Octokit::Client).new_instances
-                                             .should_receive(:organization_events)
-                                             .with("rock-core").and_return([])
-                    flexmock(Octokit::Client).new_instances.should_receive(:user_events)
-                                             .with("g-arjones").and_return([])
-
-                    @client = Client.new(auto_paginate: false)
-                    client.fetch_events("rock-core", organization: true)
-                    client.fetch_events("g-arjones", organization: false)
-                end
-
-                it "returns true if a given user is an organization" do
-                    assert client.organization?("github")
-                end
-
                 it "retries on connection failure" do
                     runs = 0
                     flexmock(client).should_receive(:check_rate_limit_and_wait)

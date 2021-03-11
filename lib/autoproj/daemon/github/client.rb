@@ -5,8 +5,6 @@ require "octokit"
 require "autoproj"
 require "autoproj/daemon/github/branch"
 require "autoproj/daemon/github/pull_request"
-require "autoproj/daemon/github/push_event"
-require "autoproj/daemon/github/pull_request_event"
 
 module Autoproj
     module Daemon
@@ -76,30 +74,6 @@ module Autoproj
                     nil
                 end
 
-                # @param [String] user
-                # @return [Boolean]
-                def organization?(user)
-                    with_retry do
-                        @client.user(user)["type"] == "Organization"
-                    end
-                end
-
-                # @return [Array<PushEvent, PullRequestEvent>]
-                def fetch_events(owner, organization: false)
-                    with_retry do
-                        events_for(owner, organization: organization).map do |event|
-                            type = event["type"]
-                            next unless %w[PullRequestEvent PushEvent].include? type
-
-                            if type == "PullRequestEvent"
-                                PullRequestEvent.from_ruby_hash(event.to_hash)
-                            else
-                                PushEvent.from_ruby_hash(event.to_hash)
-                            end
-                        end.compact
-                    end
-                end
-
                 # @return [Array<Branch>]
                 def branches(owner, name, options = {})
                     with_retry do
@@ -153,21 +127,6 @@ module Autoproj
                 # @return [Time]
                 def last_response_time
                     @client.last_response.headers[:time]
-                end
-
-                private
-
-                # @private
-                #
-                # @param [String] owner
-                # @param [Boolean] organization
-                # @return [void]
-                def events_for(owner, organization: false)
-                    with_retry do
-                        return @client.user_events(owner) unless organization
-
-                        @client.organization_events(owner)
-                    end
                 end
             end
         end
