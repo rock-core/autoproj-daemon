@@ -54,7 +54,12 @@ module Autoproj
 
             # @return [String]
             def head_sha
-                `git -C #{local_dir} rev-parse HEAD`.strip
+                out, err, status = Open3.capture3(
+                    "git", "-C", local_dir, "rev-parse", "HEAD"
+                )
+                raise err unless status.success?
+
+                out.strip
             end
 
             # @return [Autobuild::Package]

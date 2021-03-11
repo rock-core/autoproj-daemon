@@ -103,7 +103,7 @@ module Autoproj
                     now = Time.now
                     flexmock(bb).should_receive(:post_change).with(
                         author: "g-arjones",
-                        branch: "master",
+                        branch: "devel",
                         category: "push",
                         codebase: "",
                         committer: "g-arjones",
@@ -113,16 +113,16 @@ module Autoproj
                         when_timestamp: now.tv_sec
                     ).once
 
-                    event = autoproj_daemon_add_push_event(
-                        author: "g-arjones",
-                        owner: "tidewise",
-                        name: "drivers-gps_ublox",
-                        branch: "feature",
-                        head_sha: "abcdef",
-                        created_at: now
+                    branch = autoproj_daemon_add_branch(
+                        "tidewise",
+                        "drivers-gps_ublox",
+                        branch_name: "devel",
+                        sha: "abcdef",
+                        commit_author: "g-arjones",
+                        commit_date: now
                     )
 
-                    bb.post_mainline_changes(flexmock, [event])
+                    bb.post_mainline_changes(flexmock, branch)
                 end
             end
         end

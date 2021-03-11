@@ -3,6 +3,7 @@
 require "autoproj"
 require "thor"
 require "autoproj/cli/daemon"
+require "autoproj/daemon/workspace_updater"
 require "faraday-http-cache"
 
 module Autoproj
@@ -26,15 +27,21 @@ module Autoproj
                 end
                 Octokit.middleware = stack
 
-                daemon = Daemon.new(Autoproj.workspace)
+                ws = Autoproj.workspace
+                updater = Autoproj::Daemon::WorkspaceUpdater.new(ws)
+
+                daemon = Daemon.new(ws, updater)
                 daemon.clear_and_dump_cache if options[:clear_cache]
-                daemon.update if options[:update]
+                updater.update if options[:update]
                 daemon.start
             end
 
             desc "configure", "Configures autoproj daemon plugin"
             def configure(*_args)
-                daemon = Daemon.new(Autoproj.workspace)
+                ws = Autoproj.workspace
+                updater = Autoproj::Daemon::WorkspaceUpdater.new(ws)
+
+                daemon = Daemon.new(ws, updater)
                 daemon.configure
             end
         end

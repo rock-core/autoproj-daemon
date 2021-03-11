@@ -3,6 +3,7 @@
 require "test_helper"
 require "autoproj/cli/main_daemon"
 require "autoproj/cli/daemon"
+require "autoproj/daemon/workspace_updater"
 require "rubygems/package"
 require "time"
 
@@ -16,7 +17,9 @@ module Autoproj
             end
             describe "#start" do
                 it "starts the daemon" do
-                    flexmock(Daemon).new_instances.should_receive(:update).never
+                    flexmock(Autoproj::Daemon::WorkspaceUpdater)
+                        .new_instances.should_receive(:update).never
+
                     flexmock(Daemon).new_instances.should_receive(:start).once
                     flexmock(Daemon).new_instances
                                     .should_receive(:clear_and_dump_cache).never
@@ -26,7 +29,9 @@ module Autoproj
                 end
 
                 it "runs an update prior to starting the daemon" do
-                    flexmock(Daemon).new_instances.should_receive(:update).once
+                    flexmock(Autoproj::Daemon::WorkspaceUpdater)
+                        .new_instances.should_receive(:update).once
+
                     flexmock(Daemon).new_instances.should_receive(:start).once.ordered
                     in_ws do
                         MainDaemon.start(%w[start --update])

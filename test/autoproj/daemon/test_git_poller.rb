@@ -19,6 +19,7 @@ module Autoproj
                 @packages = []
                 @cache = PullRequestCache.new(@ws)
                 @client = Github::Client.new
+                @updater = Autoproj::Daemon::WorkspaceUpdater.new(@ws)
 
                 @buildconf = PackageRepository.new(
                     "main configuration",
@@ -26,11 +27,12 @@ module Autoproj
                     "buildconf",
                     ws.manifest.main_package_set.vcs.to_hash,
                     buildconf: true,
-                    ws: ws
+                    ws: ws,
+                    local_dir: ws.config_dir
                 )
 
                 @manager = GitPoller.new(
-                    @buildconf, @client, @packages, @cache, @ws,
+                    @buildconf, @client, @packages, @cache, @ws, @updater,
                     project: "myproject"
                 )
             end
@@ -238,11 +240,12 @@ module Autoproj
 
                         flexmock(@manager)
                             .should_receive(:handle_package_changes)
-                            .with(any)
+                            .with(any, any)
                             .never
 
                         flexmock(@manager)
                             .should_receive(:handle_buildconf_changes)
+                            .with(any)
                             .never
 
                         @manager.update_package_branches
@@ -271,14 +274,15 @@ module Autoproj
                             branch: "master"
                         )
 
-                        autoproj_daemon_add_branch(
+                        branches = []
+                        branches << autoproj_daemon_add_branch(
                             "rock-drivers",
                             "drivers-iodrivers_base",
                             branch_name: "devel",
                             sha: "abcdef"
                         )
 
-                        autoproj_daemon_add_branch(
+                        branches << autoproj_daemon_add_branch(
                             "rock-drivers",
                             "drivers-iodrivers_base",
                             branch_name: "master",
@@ -287,17 +291,17 @@ module Autoproj
 
                         flexmock(@manager)
                             .should_receive(:handle_package_changes)
-                            .with(iodrivers_base)
+                            .with(iodrivers_base, branches.first)
                             .once
 
                         flexmock(@manager)
                             .should_receive(:handle_package_changes)
-                            .with(iodrivers_base2)
+                            .with(iodrivers_base2, branches.first)
                             .once
 
                         flexmock(@manager)
                             .should_receive(:handle_package_changes)
-                            .with(iodrivers_base3)
+                            .with(iodrivers_base3, any)
                             .never
 
                         flexmock(@manager)
@@ -310,21 +314,85 @@ module Autoproj
                 end
 
                 describe "buildconf changed" do
-                    before do
-                        autoproj_daemon_add_branch(
+                    it "properly handles a buildconf change" do
+                        branch = autoproj_daemon_add_branch(
                             "rock-core",
                             "buildconf",
                             branch_name: "master",
                             sha: "abcdef"
                         )
-                    end
 
-                    it "properly handles a buildconf change" do
-                        flexmock(@manager).should_receive(:handle_buildconf_changes).once
+                        flexmock(@manager)
+                            .should_receive(:handle_buildconf_changes)
+                            .with(branch)
+                            .once
 
                         @manager.update_package_branches
                         @manager.trigger_build_if_mainline_changed
                     end
+                end
+            end
+
+            describe "handling of a push on a mainline branch" do
+                it "clears cache if it is a buildconf push" do
+                    pull_request = autoproj_daemon_create_pull_request(
+                        base_owner: "rock-core",
+                        base_name: "drivers-iodrivers_base",
+                        base_branch: "master",
+                        head_owner: "rock-core",
+                        head_name: "drivers-iodrivers_base",
+                        head_branch: "feature",
+                        head_sha: "abcdef",
+                        number: 1
+                    )
+
+                    branch = autoproj_daemon_add_branch(
+                        "rock-core", "buildconf", branch_name: "master", sha: "abcdef"
+                    )
+
+                    flexmock(@manager.bb)
+                        .should_receive(:post_mainline_changes)
+                        .with(@buildconf, branch)
+                        .once
+
+                    flexmock(@updater)
+                        .should_receive(:restart_and_update)
+                        .once
+                        .ordered
+
+                    @cache.add(pull_request, [])
+                    @cache.dump
+                    assert_equal 1, @cache.reload.pull_requests.size
+
+                    @manager.handle_buildconf_changes(branch)
+                    assert_equal 0, @cache.reload.pull_requests.size
+                end
+                it "triggers build, restarts daemon and updates the workspace" do
+                    pkg = add_package(
+                        "drivers/iodrivers_base",
+                        "rock-drivers",
+                        "drivers-iodrivers_base",
+                        branch: "master"
+                    )
+
+                    branch = autoproj_daemon_add_branch(
+                        "rock-drivers",
+                        "drivers-iodrivers_base",
+                        branch_name: "master",
+                        sha: "abcdef"
+                    )
+
+                    flexmock(@manager.bb)
+                        .should_receive(:post_mainline_changes)
+                        .with(pkg, branch)
+                        .once
+
+                    flexmock(@updater)
+                        .should_receive(:restart_and_update)
+                        .once
+                        .ordered
+
+                    @manager.handle_package_changes(pkg, branch)
                 end
             end
 

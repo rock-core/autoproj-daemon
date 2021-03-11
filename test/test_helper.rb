@@ -335,7 +335,13 @@ module Autoproj
                     owner, name,
                     name: options[:branch_name],
                     commit: {
-                        sha: options[:sha]
+                        sha: options[:sha],
+                        commit: {
+                            author: {
+                                name: options[:commit_author],
+                                date: options[:commit_date]
+                            }
+                        }
                     }
                 )
 

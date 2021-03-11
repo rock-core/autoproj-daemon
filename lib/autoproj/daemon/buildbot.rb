@@ -73,27 +73,25 @@ module Autoproj
             # Publish changes that happened to a mainline branch
             #
             # @param [PackageRepository] _package
-            # @param [Array<Github::PushEvent>] events
+            # @param [Github::Branch] remote_branch
             # @return [Boolean]
-            def post_mainline_changes(_package, events)
-                events.each do |push_event|
-                    repository =
-                        "https://github.com/#{push_event.owner}/#{push_event.name}"
+            def post_mainline_changes(_package, remote_branch)
+                repository =
+                    "https://github.com/#{remote_branch.owner}/#{remote_branch.name}"
 
-                    post_change(
-                        # Codebase is a single codebase - i.e. single repo, but
-                        # tracked across forks
-                        author: push_event.author,
-                        branch: "master",
-                        category: "push",
-                        codebase: "",
-                        committer: push_event.author,
-                        repository: repository,
-                        revision: push_event.head_sha,
-                        revlink: repository,
-                        when_timestamp: push_event.created_at.tv_sec
-                    )
-                end
+                post_change(
+                    # Codebase is a single codebase - i.e. single repo, but
+                    # tracked across forks
+                    author: remote_branch.commit_author,
+                    branch: remote_branch.branch_name,
+                    category: "push",
+                    codebase: "",
+                    committer: remote_branch.commit_author,
+                    repository: repository,
+                    revision: remote_branch.sha,
+                    revlink: repository,
+                    when_timestamp: remote_branch.commit_date.tv_sec
+                )
             end
 
             # @return [Boolean]

@@ -46,6 +46,9 @@ module Autoproj
             # @return [Autoproj::Workspace]
             attr_reader :ws
 
+            # @return [Autoproj::Daemon::WorkspaceUpdater]
+            attr_reader :updater
+
             # @param [PackageRepository] buildconf Buildconf repository
             # @param [Github::Client] client Github client API
             # @param [Array<Autoproj::Daemon::PackageRepository>] packages An array
@@ -53,8 +56,9 @@ module Autoproj
             # @param [Autoproj::Daemon::PullRequestCache] cache Pull request cache
             # @param [Autoproj::Workspace] workspace Current workspace
             def initialize(
-                buildconf, client, packages, cache, workspace, project: "daemon"
+                buildconf, client, packages, cache, workspace, updater, project: "daemon"
             )
+                @updater = updater
                 @project = project.to_str
                 @bb = Buildbot.new(workspace, project: project)
                 @buildconf = buildconf
@@ -68,6 +72,12 @@ module Autoproj
                 @main = @buildconf.autobuild
                 @importer = @main.importer
                 @cache = cache
+            end
+
+            # @return [void]
+            def clear_and_dump_cache
+                @cache.clear
+                @cache.dump
             end
 
             # @return [Array<Autoproj::Daemon::PackageRepository>]
@@ -106,23 +116,49 @@ module Autoproj
                 package_branches.each do |branch|
                     pkgs = packages_by_branch(branch)
                     pkgs.each do |pkg|
-                        handle_package_changes(pkg) if pkg.head_sha != branch.sha
+                        handle_package_changes(pkg, branch) if pkg.head_sha != branch.sha
                     end
                 end
 
                 buildconf_branch = client.branch(
                     buildconf.owner, buildconf.name, buildconf.branch
                 )
+                return if buildconf.head_sha == buildconf_branch.sha
 
-                handle_buildconf_changes if buildconf.head_sha != buildconf_branch.sha
+                handle_buildconf_changes(buildconf_branch)
             end
 
             # @param [Autoproj::Daemon::PackageRepository] pkg
+            # @param [Autoproj::Daemon::Github::Branch] remote_branch
             # @return [void]
-            def handle_package_changes(pkg); end
+            def handle_package_changes(pkg, remote_branch)
+                Autoproj.message(
+                    "Push detected on #{pkg.name}, local: #{pkg.head_sha} "\
+                    "remote: #{remote_branch.sha}"
+                )
+
+                if updater.update_failed?
+                    Autoproj.message "Not triggering build, the last update failed"
+                    Autoproj.message "The daemon will attempt to update the workspace, "\
+                                     "and will trigger a new build if that's successful"
+                else
+                    bb.post_mainline_changes(pkg, remote_branch)
+                end
+                updater.restart_and_update
+            end
 
             # @return [void]
-            def handle_buildconf_changes; end
+            # @param [Autoproj::Daemon::Github::Branch] branch
+            def handle_buildconf_changes(remote_branch)
+                Autoproj.message(
+                    "Push detected on the buildconf, local: #{buildconf.head_sha} "\
+                    "remote: #{remote_branch.sha}"
+                )
+                bb.post_mainline_changes(buildconf, remote_branch)
+
+                clear_and_dump_cache
+                updater.restart_and_update
+            end
 
             # @return [Array<Github::PullRequest>]
             def update_pull_requests
@@ -360,15 +396,19 @@ module Autoproj
             end
 
             # @return [void]
-            def synchronize_branches
-                update_pull_requests
-                update_branches
-                delete_stale_branches
-                created, existing = create_missing_branches
+            def poll
+                unless updater.update_failed?
+                    update_pull_requests
+                    update_branches
+                    delete_stale_branches
+                    created, existing = create_missing_branches
 
-                created.each { |branch| trigger_build(branch) }
-                trigger_build_if_branch_changed(existing)
-                update_cache
+                    created.each { |branch| trigger_build(branch) }
+                    trigger_build_if_branch_changed(existing)
+                    update_cache
+                end
+
+                trigger_build_if_mainline_changed
             end
         end
     end

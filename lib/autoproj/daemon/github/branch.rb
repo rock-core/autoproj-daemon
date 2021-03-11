@@ -37,6 +37,16 @@ module Autoproj
                 def sha
                     @model["commit"]["sha"]
                 end
+
+                # @return [String]
+                def commit_author
+                    @model["commit"]["commit"]["author"]["name"]
+                end
+
+                # @return [Time]
+                def commit_date
+                    Time.parse(@model["commit"]["commit"]["author"]["date"])
+                end
             end
         end
     end

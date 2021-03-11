@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "autoproj/daemon/github/branch"
+require "test_helper"
 
 # Autoproj's main module
 module Autoproj
@@ -35,6 +36,15 @@ module Autoproj
                 it "returns sha" do
                     assert_equal "8076a19fdcab7e1fc1707952d652f0bb6c6db331",
                                  branch.sha
+                end
+
+                it "returns the commit author" do
+                    assert_equal "The Octocat", branch.commit_author
+                end
+
+                it "returns the commit date" do
+                    assert_equal Time.parse("2012-03-06T15:06:50-08:00"),
+                                 branch.commit_date
                 end
             end
         end
