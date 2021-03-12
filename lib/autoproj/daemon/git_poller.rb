@@ -111,52 +111,58 @@ module Autoproj
                 end
             end
 
-            # @return [void]
-            def trigger_build_if_mainline_changed
+            # @return [Boolean]
+            def trigger_build_if_packages_changed
+                changed = false
+
                 package_branches.each do |branch|
                     pkgs = packages_by_branch(branch)
                     pkgs.each do |pkg|
-                        handle_package_changes(pkg, branch) if pkg.head_sha != branch.sha
+                        next if pkg.head_sha == branch.sha
+
+                        Autoproj.message(
+                            "Push detected on #{pkg.package}, local: #{pkg.head_sha} "\
+                            "remote: #{branch.sha}"
+                        )
+
+                        if updater.update_failed?
+                            Autoproj.message "Not triggering build, last update failed"
+                            Autoproj.message "The daemon will attempt to update the "\
+                                             "workspace, and will trigger a new build "\
+                                             "if that's successful"
+                        else
+                            bb.post_mainline_changes(pkg, branch)
+                        end
+                        changed = true
                     end
                 end
 
+                changed
+            end
+
+            # @return [Boolean]
+            def trigger_build_if_buildconf_changed
                 buildconf_branch = client.branch(
                     buildconf.owner, buildconf.name, buildconf.branch
                 )
-                return if buildconf.head_sha == buildconf_branch.sha
+                return false if buildconf.head_sha == buildconf_branch.sha
 
-                handle_buildconf_changes(buildconf_branch)
-            end
-
-            # @param [Autoproj::Daemon::PackageRepository] pkg
-            # @param [Autoproj::Daemon::Github::Branch] remote_branch
-            # @return [void]
-            def handle_package_changes(pkg, remote_branch)
-                Autoproj.message(
-                    "Push detected on #{pkg.name}, local: #{pkg.head_sha} "\
-                    "remote: #{remote_branch.sha}"
-                )
-
-                if updater.update_failed?
-                    Autoproj.message "Not triggering build, the last update failed"
-                    Autoproj.message "The daemon will attempt to update the workspace, "\
-                                     "and will trigger a new build if that's successful"
-                else
-                    bb.post_mainline_changes(pkg, remote_branch)
-                end
-                updater.restart_and_update
-            end
-
-            # @return [void]
-            # @param [Autoproj::Daemon::Github::Branch] branch
-            def handle_buildconf_changes(remote_branch)
                 Autoproj.message(
                     "Push detected on the buildconf, local: #{buildconf.head_sha} "\
-                    "remote: #{remote_branch.sha}"
+                    "remote: #{buildconf_branch.sha}"
                 )
-                bb.post_mainline_changes(buildconf, remote_branch)
+                bb.post_mainline_changes(buildconf, buildconf_branch)
+                true
+            end
 
-                clear_and_dump_cache
+            # @return [void]
+            def handle_mainline_changes
+                pkgs_changed = trigger_build_if_packages_changed
+                buildconf_changed = trigger_build_if_buildconf_changed
+
+                clear_and_dump_cache if buildconf_changed
+                return unless pkgs_changed || buildconf_changed
+
                 updater.restart_and_update
             end
 
@@ -408,7 +414,8 @@ module Autoproj
                     update_cache
                 end
 
-                trigger_build_if_mainline_changed
+                update_package_branches
+                handle_mainline_changes
             end
         end
     end

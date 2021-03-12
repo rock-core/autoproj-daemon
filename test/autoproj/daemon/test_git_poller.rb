@@ -48,6 +48,35 @@ module Autoproj
                 @packages << package
                 package
             end
+
+            def expect_mainline_build(pkg, branch)
+                flexmock(@manager.bb)
+                    .should_receive(:post_mainline_changes)
+                    .with(pkg, branch)
+                    .once
+                    .ordered
+            end
+
+            def expect_restart_and_update
+                flexmock(@updater)
+                    .should_receive(:restart_and_update)
+                    .once
+                    .ordered
+            end
+
+            def expect_no_mainline_build(pkg, branch)
+                flexmock(@manager.bb)
+                    .should_receive(:post_mainline_changes)
+                    .with(pkg, branch)
+                    .never
+            end
+
+            def expect_no_restart_and_update
+                flexmock(@updater)
+                    .should_receive(:restart_and_update)
+                    .never
+            end
+
             describe "#update_pull_requests" do
                 it "does not poll same repository twice" do
                     add_package("drivers/iodrivers_base2", "rock-core",
@@ -165,7 +194,7 @@ module Autoproj
                 end
             end
 
-            describe "#update_package_branches" do
+            describe "#packages_by_branch" do
                 it "returns packages that use the given branch" do
                     branches = []
                     branches << autoproj_daemon_add_branch(
@@ -212,7 +241,7 @@ module Autoproj
                 end
             end
 
-            describe "#trigger_build_if_mainline_changed" do
+            describe "#handle_mainline_changes" do
                 describe "buildconf not changed" do
                     before do
                         autoproj_daemon_add_branch(
@@ -238,18 +267,11 @@ module Autoproj
                             sha: iodrivers_base.head_sha
                         )
 
-                        flexmock(@manager)
-                            .should_receive(:handle_package_changes)
-                            .with(any, any)
-                            .never
-
-                        flexmock(@manager)
-                            .should_receive(:handle_buildconf_changes)
-                            .with(any)
-                            .never
+                        expect_no_mainline_build(any, any)
+                        expect_no_restart_and_update
 
                         @manager.update_package_branches
-                        @manager.trigger_build_if_mainline_changed
+                        @manager.handle_mainline_changes
                     end
 
                     it "triggers build on packages affected by a mainline change" do
@@ -289,27 +311,14 @@ module Autoproj
                             sha: iodrivers_base3.head_sha
                         )
 
-                        flexmock(@manager)
-                            .should_receive(:handle_package_changes)
-                            .with(iodrivers_base, branches.first)
-                            .once
-
-                        flexmock(@manager)
-                            .should_receive(:handle_package_changes)
-                            .with(iodrivers_base2, branches.first)
-                            .once
-
-                        flexmock(@manager)
-                            .should_receive(:handle_package_changes)
-                            .with(iodrivers_base3, any)
-                            .never
-
-                        flexmock(@manager)
-                            .should_receive(:handle_buildconf_changes)
-                            .never
+                        expect_mainline_build(iodrivers_base, branches.first)
+                        expect_mainline_build(iodrivers_base2, branches.first)
+                        expect_no_mainline_build(iodrivers_base3, any)
+                        expect_no_mainline_build(@buildconf, any)
+                        expect_restart_and_update
 
                         @manager.update_package_branches
-                        @manager.trigger_build_if_mainline_changed
+                        @manager.handle_mainline_changes
                     end
                 end
 
@@ -322,13 +331,11 @@ module Autoproj
                             sha: "abcdef"
                         )
 
-                        flexmock(@manager)
-                            .should_receive(:handle_buildconf_changes)
-                            .with(branch)
-                            .once
+                        expect_mainline_build(@buildconf, branch)
+                        expect_restart_and_update
 
                         @manager.update_package_branches
-                        @manager.trigger_build_if_mainline_changed
+                        @manager.handle_mainline_changes
                     end
                 end
             end
@@ -350,21 +357,15 @@ module Autoproj
                         "rock-core", "buildconf", branch_name: "master", sha: "abcdef"
                     )
 
-                    flexmock(@manager.bb)
-                        .should_receive(:post_mainline_changes)
-                        .with(@buildconf, branch)
-                        .once
-
-                    flexmock(@updater)
-                        .should_receive(:restart_and_update)
-                        .once
-                        .ordered
+                    expect_mainline_build(@buildconf, branch)
+                    expect_restart_and_update
 
                     @cache.add(pull_request, [])
                     @cache.dump
                     assert_equal 1, @cache.reload.pull_requests.size
 
-                    @manager.handle_buildconf_changes(branch)
+                    @manager.update_package_branches
+                    @manager.handle_mainline_changes
                     assert_equal 0, @cache.reload.pull_requests.size
                 end
                 it "triggers build, restarts daemon and updates the workspace" do
@@ -382,17 +383,17 @@ module Autoproj
                         sha: "abcdef"
                     )
 
-                    flexmock(@manager.bb)
-                        .should_receive(:post_mainline_changes)
-                        .with(pkg, branch)
-                        .once
+                    autoproj_daemon_add_branch(
+                        "rock-core", "buildconf",
+                        branch_name: "master", sha: @buildconf.head_sha
+                    )
 
-                    flexmock(@updater)
-                        .should_receive(:restart_and_update)
-                        .once
-                        .ordered
+                    expect_mainline_build(pkg, branch)
+                    expect_no_mainline_build(@buildconf, any)
+                    expect_restart_and_update
 
-                    @manager.handle_package_changes(pkg, branch)
+                    @manager.update_package_branches
+                    @manager.handle_mainline_changes
                 end
             end
 
