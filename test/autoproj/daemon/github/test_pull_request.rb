@@ -52,11 +52,6 @@ module Autoproj
                                  pull_request.head_sha
                 end
 
-                it "returns the base sha" do
-                    assert_equal "f2d41726ba5a0e8abfe61b2c743022b1b6372010",
-                                 pull_request.base_sha
-                end
-
                 it "returns the base owner" do
                     assert_equal "microsoft", pull_request.base_owner
                 end

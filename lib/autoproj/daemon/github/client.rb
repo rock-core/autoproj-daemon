@@ -61,19 +61,6 @@ module Autoproj
                     end
                 end
 
-                # @return [PullRequest]
-                def pull_request(owner, name, number, options = {})
-                    with_retry do
-                        PullRequest.from_ruby_hash(
-                            @client.pull_request(
-                                "#{owner}/#{name}", number, options
-                            ).to_hash
-                        )
-                    end
-                rescue Octokit::NotFound
-                    nil
-                end
-
                 # @return [Array<Branch>]
                 def branches(owner, name, options = {})
                     with_retry do
@@ -115,18 +102,6 @@ module Autoproj
                         ).to_hash
                     end
                     Branch.from_ruby_hash(owner, name, model)
-                end
-
-                # @return [Integer]
-                def rate_limit_remaining
-                    with_retry do
-                        @client.rate_limit!.remaining
-                    end
-                end
-
-                # @return [Time]
-                def last_response_time
-                    @client.last_response.headers[:time]
                 end
             end
         end

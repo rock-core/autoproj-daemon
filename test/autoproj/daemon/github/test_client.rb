@@ -32,11 +32,6 @@ module Autoproj
                     branches.each { |branch| assert_equal Branch, branch.class }
                 end
 
-                it "returns github last reponse time" do
-                    client.rate_limit_remaining
-                    assert Time, client.last_response_time.class
-                end
-
                 it "retries on connection failure" do
                     runs = 0
                     flexmock(client).should_receive(:check_rate_limit_and_wait)

@@ -37,11 +37,6 @@ module Autoproj
                 end
 
                 # @return [String]
-                def base_sha
-                    @model["base"]["sha"]
-                end
-
-                # @return [String]
                 def head_sha
                     @model["head"]["sha"]
                 end
