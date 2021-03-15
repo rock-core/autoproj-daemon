@@ -7,8 +7,33 @@ require "test_helper"
 module Autoproj
     # Daemon main module
     module Daemon
-        # Github API main module
+        # :nodoc:
         module GitAPI
+            # :nodoc:
+            module Services
+                def self.dummy(**options)
+                    Dummy.new(**options)
+                end
+
+                # Dummy service
+                class Dummy < Service
+                    attr_reader :access_token
+
+                    def initialize(**options)
+                        super
+                        @access_token = options[:access_token]
+                    end
+
+                    def default_endpoint
+                        "https://#{host}/api/v4"
+                    end
+
+                    def extract_info_from_pull_request_ref(_, _)
+                        ["https://dummy.com/foo/bar", 22]
+                    end
+                end
+            end
+
             describe Client do
                 include Autoproj::Daemon::TestHelpers
                 attr_reader :client
@@ -54,7 +79,13 @@ module Autoproj
 
                 it "watis for the remaining time until next limit reset" do
                     rate_limit = flexmock
-                    service = flexmock(Service.new(host: "github.com"))
+                    service = flexmock(
+                        Service.new(
+                            host: "github.com",
+                            api_endpoint: "https://api.github.com",
+                            access_token: "key"
+                        )
+                    )
                     service.should_receive(:rate_limit).and_return(rate_limit)
 
                     @client = Client.new(ws)
@@ -62,6 +93,148 @@ module Autoproj
                     rate_limit.should_receive(:resets_in).and_return(15)
                     flexmock(client).should_receive(:sleep).explicitly.with(16).once
                     client.check_rate_limit_and_wait(service)
+                end
+
+                describe "#extract_info_from_pull_request_ref" do
+                    attr_reader :pr
+
+                    before do
+                        ws.config.daemon_set_service(
+                            "dummy.com", "apikey", "https://dummy", "dummy"
+                        )
+                        @client = Client.new(ws)
+                        @pr = autoproj_daemon_create_pull_request(
+                            repo_url: "git@dummy.com:foo/bar.git"
+                        )
+                    end
+
+                    it "extracts pull request info from ref" do
+                        assert_equal ["https://dummy.com/foo/bar", 22],
+                                     client.extract_info_from_pull_request_ref(
+                                         "foo/bar#22", pr
+                                     )
+                    end
+                end
+
+                describe "#initialize" do
+                    it "passes options to services instances" do
+                        ws.config.daemon_set_service(
+                            "dummy.com", "apikey", "https://dummy", "dummy"
+                        )
+                        @client = Client.new(ws)
+
+                        service = client.service("git@dummy.com:foo/bar")
+                        assert_equal Services::Dummy, service.class
+                        assert_equal "dummy.com", service.host
+                        assert_equal "apikey", service.access_token
+                        assert_equal "https://dummy", service.api_endpoint
+
+                        assert client.supports?("git@dummy.com:foo/bar")
+                        assert client.services.key?("dummy.com")
+                    end
+
+                    it "does not support services without access tokens" do
+                        ws.config.daemon_set_service(
+                            "dummy.com", nil, "https://dummy", "dummy"
+                        )
+                        @client = Client.new(ws)
+
+                        e = assert_raises(ArgumentError) do
+                            client.service("git@dummy.com:foo/bar")
+                        end
+
+                        assert_match(/Unsupported/, e.message)
+                        refute client.supports?("git@dummy.com:foo/bar")
+                        refute client.services.key?("dummy.com")
+                    end
+
+                    it "does not support services without api endpoints" do
+                        ws.config.daemon_set_service(
+                            "dummy.com", "apikey", nil, "dummy"
+                        )
+                        flexmock(Services::Dummy).new_instances
+                                                 .should_receive(:default_endpoint)
+                                                 .and_return(nil)
+
+                        @client = Client.new(ws)
+                        e = assert_raises(ArgumentError) do
+                            client.service("git@dummy.com:foo/bar")
+                        end
+
+                        assert_match(/Unsupported/, e.message)
+                        refute client.supports?("git@dummy.com:foo/bar")
+                        refute client.services.key?("dummy.com")
+                    end
+
+                    it "uses default endpoint if unset" do
+                        ws.config.daemon_set_service(
+                            "dummy.com", "apikey", nil, "dummy"
+                        )
+                        @client = Client.new(ws)
+                        service = client.service("git@dummy.com:foo/bar")
+                        assert_equal "https://dummy.com/api/v4", service.api_endpoint
+                    end
+
+                    it "does not allow defining services with unknown backends" do
+                        ws.config.daemon_set_service(
+                            "dummy.com", "apikey", "https://dummy", "foobar"
+                        )
+                        e = assert_raises(Autoproj::ConfigError) do
+                            @client = Client.new(ws)
+                        end
+                        assert_match(/not supported/, e.message)
+                    end
+
+                    it "does not allow defining services without a backend" do
+                        ws.config.daemon_set_service(
+                            "dummy.com", "apikey", "https://dummy", nil
+                        )
+                        e = assert_raises(Autoproj::ConfigError) do
+                            @client = Client.new(ws)
+                        end
+                        assert_match(/Service parameter missing/, e.message)
+                    end
+
+                    describe "merging of service configurations" do
+                        before do
+                            @services = Client::SERVICES
+                            Client.const_set(
+                                :SERVICES,
+                                Client::SERVICES.merge(
+                                    {
+                                        "dummy.com" => {
+                                            "api_endpoint" => "https://dummy.com",
+                                            "service" => "dummy",
+                                            "access_token" => nil
+                                        }
+                                    }
+                                )
+                            )
+                        end
+
+                        after do
+                            Client.const_set(:SERVICES, @services)
+                        end
+
+                        it "merges service configurations" do
+                            ws.config.daemon_set_service("dummy.com", "apikey")
+                            ws.config.daemon_set_service(
+                                "foo.com", "apikey", "https://dummy", "dummy"
+                            )
+                            @client = Client.new(ws)
+                            service = client.service("git@dummy.com:foo/bar")
+                            assert_equal Services::Dummy, service.class
+                            assert_equal "dummy.com", service.host
+                            assert_equal "apikey", service.access_token
+                            assert_equal "https://dummy.com", service.api_endpoint
+
+                            service = client.service("git@foo.com:foo/bar")
+                            assert_equal Services::Dummy, service.class
+                            assert_equal "foo.com", service.host
+                            assert_equal "apikey", service.access_token
+                            assert_equal "https://dummy", service.api_endpoint
+                        end
+                    end
                 end
             end
         end

@@ -20,10 +20,19 @@ module Autoproj
                 def initialize(
                     host: nil,
                     api_endpoint: nil,
-                    access_token: nil # rubocop: disable Lint/UnusedMethodArgument
+                    access_token: nil
                 )
                     @host = host
-                    @api_endpoint = api_endpoint
+                    @api_endpoint = api_endpoint || default_endpoint
+
+                    unless @api_endpoint
+                        raise Autoproj::ConfigError,
+                              "API endpoint configuration missing for #{host}"
+                    end
+                    return if access_token
+
+                    raise Autoproj::ConfigError,
+                          "API key configuration missing for #{host}"
                 end
 
                 # @param [GitAPI::URL] url
@@ -52,6 +61,14 @@ module Autoproj
 
                 # @return [RateLimit]
                 def rate_limit; end
+
+                # @return [String]
+                def default_endpoint; end
+
+                # @param [String] ref
+                # @param [GitAPI::PullRequest] pull_request
+                # @return [String]
+                def extract_info_from_pull_request_ref(ref, pull_request); end
             end
         end
     end

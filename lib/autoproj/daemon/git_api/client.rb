@@ -11,26 +11,73 @@ module Autoproj
         module GitAPI
             # An adapter for Git services APIs
             class Client
+                # @param [Hash]
+                attr_reader :services
+
                 SERVICES = {
                     "github.com" => {
                         "service" => "github",
-                        "api_endpoint" => nil,
+                        "api_endpoint" => "https://api.github.com",
                         "access_token" => nil
                     }
                 }.freeze
 
+                # @param [Autoproj::Workspace] ws
                 def initialize(ws)
                     @ws = ws
                     @services = {}
 
-                    SERVICES.each do |host, params|
+                    load_configuration
+                end
+
+                # @return [Hash]
+                def load_unknown_services
+                    all_services = SERVICES.dup
+                    config = @ws.config.daemon_services
+
+                    config.each do |k, v|
+                        all_services[k] = v unless all_services.key?(k)
+                    end
+
+                    all_services
+                end
+
+                # @param [String]
+                # @return [void]
+                def validate_service_name(service, host)
+                    return if service && Services.respond_to?(service)
+
+                    message = if service
+                                  "Service '#{service}' is not supported (#{host})"
+                              else
+                                  "Service parameter missing for #{host} (i.e github)"
+                              end
+                    raise Autoproj::ConfigError, message
+                end
+
+                # @return [void]
+                def load_configuration
+                    all_services = load_unknown_services
+                    config = @ws.config.daemon_services
+
+                    all_services.each do |host, params|
+                        params = params.merge(config[host].compact) if config[host]
                         service = params["service"]
                         endpoint = params["api_endpoint"]
                         token = params["access_token"]
 
-                        @services[host] = Services.send(service, host: host,
-                                                                 api_endpoint: endpoint,
-                                                                 access_token: token)
+                        validate_service_name(service, host)
+
+                        begin
+                            @services[host] = Services.send(
+                                service,
+                                host: host,
+                                api_endpoint: endpoint,
+                                access_token: token
+                            )
+                        rescue Autoproj::ConfigError
+                            next
+                        end
                     end
                 end
 
@@ -116,7 +163,7 @@ module Autoproj
                 # @param [Branch] branch A branch to delete
                 # @return [void]
                 def delete_branch(branch)
-                    service = service(branch.git_url.uri.to_s)
+                    service = service(branch.git_url.raw)
 
                     with_retry(service) do
                         service.delete_branch(branch.git_url, branch.branch_name)
@@ -145,6 +192,14 @@ module Autoproj
                     with_retry(service) do
                         service.branch(git_url, branch_name)
                     end
+                end
+
+                # @param [String] ref
+                # @param [GitAPI::PullRequest] pull_request
+                # @return [String]
+                def extract_info_from_pull_request_ref(ref, pull_request)
+                    service(pull_request.git_url.raw)
+                        .extract_info_from_pull_request_ref(ref, pull_request)
                 end
             end
         end

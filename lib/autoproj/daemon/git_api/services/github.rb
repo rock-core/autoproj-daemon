@@ -20,6 +20,16 @@ module Autoproj
 
                 # An abstraction layer for GitHub's REST API
                 class GitHub < GitAPI::Service
+                    PULL_REQUEST_URL_RX =
+                        %r{https?://(?:\w+\.)?github.com(?:/+)
+                        ([A-Za-z\d+_\-.]+)(?:/+)([A-Za-z\d+_\-.]+)(?:/+)pull(?:/+)(\d+)}x
+                        .freeze
+
+                    OWNER_NAME_AND_NUMBER_RX = %r{([A-Za-z\d+_\-.]+)/
+                        ([A-Za-z\d+_\-.]+)\#(\d+)}x.freeze
+
+                    NUMBER_RX = /\#(\d+)/.freeze
+
                     def initialize(**options)
                         super
 
@@ -53,7 +63,9 @@ module Autoproj
                     def branches(git_url)
                         exception_adapter do
                             @client.branches(git_url.path).map do |branch|
-                                Branch.from_ruby_hash(git_url, branch.to_hash)
+                                branch = branch.to_hash
+                                branch["repository_url"] = "https://#{git_url.full_path}"
+                                Branch.from_ruby_hash(git_url, branch)
                             end
                         end
                     end
@@ -81,6 +93,7 @@ module Autoproj
                     def branch(git_url, branch_name)
                         exception_adapter do
                             model = @client.branch(git_url.path, branch_name).to_hash
+                            model["repository_url"] = "https://#{git_url.full_path}"
                             Branch.from_ruby_hash(git_url, model)
                         end
                     end
@@ -93,6 +106,23 @@ module Autoproj
                                 @client.rate_limit.resets_in
                             )
                         end
+                    end
+
+                    # @return [Array]
+                    def extract_info_from_pull_request_ref(ref, pull_request)
+                        if (match = PULL_REQUEST_URL_RX.match(ref))
+                            owner, name, number = match[1..-1]
+                        elsif (match = OWNER_NAME_AND_NUMBER_RX.match(ref))
+                            owner, name, number = match[1..-1]
+                        elsif (match = NUMBER_RX.match(ref))
+                            owner, name = pull_request.git_url.path.split("/")
+                            number = match[1]
+                        else
+                            return nil
+                        end
+
+                        number = number.to_i
+                        ["https://github.com/#{owner}/#{name}", number]
                     end
 
                     def exception_adapter

@@ -44,6 +44,24 @@ module Autoproj
                 daemon = Daemon.new(ws, updater)
                 daemon.configure
             end
+
+            desc "set HOST API_KEY [API_ENDPOINT] [SERVICE]",
+                 "Set git services parameters"
+            def set(host, access_token, api_endpoint = nil, service = nil)
+                ws = Autoproj.workspace
+                ws.load_config
+                ws.config.daemon_set_service(host, access_token, api_endpoint, service)
+                ws.config.save
+            end
+
+            desc "unset HOST",
+                 "Unset git services parameters"
+            def unset(host)
+                ws = Autoproj.workspace
+                ws.load_config
+                ws.config.daemon_unset_service(host)
+                ws.config.save
+            end
         end
     end
 end

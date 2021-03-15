@@ -22,8 +22,44 @@ module Autoproj
                     url: "git@github.com:rock-core/buildconf"
                 )
 
+                ws.config.daemon_set_service("github.com", "apikey")
+                ws.config.save
+
                 @updater = Autoproj::Daemon::WorkspaceUpdater.new(ws)
                 @cli = Daemon.new(ws, @updater)
+            end
+
+            describe "#prepare" do
+                it "does not allow non-git buildconfs" do
+                    autoproj_daemon_create_ws(type: "none")
+                    @updater = Autoproj::Daemon::WorkspaceUpdater.new(ws)
+                    @cli = Daemon.new(ws, @updater)
+                    e = assert_raises(Autoproj::ConfigError) do
+                        @cli.prepare
+                    end
+                    assert_match(/should be under git/, e.message)
+                end
+
+                it "does not allow buildconfs hosted on unsupported services" do
+                    autoproj_daemon_create_ws(
+                        type: "git",
+                        url: "git@dummy.com:rock-core/buildconf"
+                    )
+
+                    @updater = Autoproj::Daemon::WorkspaceUpdater.new(ws)
+                    @cli = Daemon.new(ws, @updater)
+                    e = assert_raises(Autoproj::ConfigError) do
+                        @cli.prepare
+                    end
+                    assert_match(/dummy.com, which is either/, e.message)
+                end
+
+                it "allows supported git services" do
+                    @cli.prepare
+                    assert @cli.buildconf_package.buildconf?
+                    assert_equal "git@github.com:rock-core/buildconf",
+                                 @cli.buildconf_package.repo_url
+                end
             end
 
             it "sets the project to 'daemon' if none is given" do
@@ -50,6 +86,22 @@ module Autoproj
                 ws.config.set "daemon_api_key", "something", true
                 cli.prepare
                 assert_equal "somename_subsystem", cli.git_poller.bb.project
+            end
+            it "raises if project name is invalid" do
+                ws.config.set "daemon_project", "foo/", true
+                assert_raises(Autoproj::ConfigError) do
+                    Daemon.new(ws, @updater, load_config: false)
+                end
+
+                ws.config.set "daemon_project", "foo*", true
+                assert_raises(Autoproj::ConfigError) do
+                    Daemon.new(ws, @updater, load_config: false)
+                end
+
+                ws.config.set "daemon_project", "foo ", true
+                assert_raises(Autoproj::ConfigError) do
+                    Daemon.new(ws, @updater, load_config: false)
+                end
             end
             describe "#resolve_packages" do
                 it "returns an array of all packages and package sets" do
@@ -85,67 +137,15 @@ module Autoproj
                 end
             end
 
-            describe "#parse_repo_url_from_vcs" do
-                it "parses an http url" do
-                    owner, name = Daemon.parse_repo_url_from_vcs(
-                        type: "git",
-                        url: "http://github.com/rock-core/autoproj"
-                    )
-                    assert_equal "rock-core", owner
-                    assert_equal "autoproj", name
-                end
-
-                it "parses a ssh url" do
-                    owner, name = Daemon.parse_repo_url_from_vcs(
-                        type: "git",
-                        url: "git@github.com:rock-core/autoproj"
-                    )
-                    assert_equal "rock-core", owner
-                    assert_equal "autoproj", name
-                end
-
-                it "removes git extension from repo name" do
-                    owner, name = Daemon.parse_repo_url_from_vcs(
-                        type: "git",
-                        url: "git@github.com:rock-core/autoproj.git"
-                    )
-                    assert_equal "rock-core", owner
-                    assert_equal "autoproj", name
-                end
-
-                it "returns nil for incomplete urls" do
-                    assert_nil Daemon.parse_repo_url_from_vcs(
-                        type: "git",
-                        url: "git@github.com:rock-core/"
-                    )
-                end
-
-                it "returns nil if vcs type is not git" do
-                    assert_nil Daemon.parse_repo_url_from_vcs(
-                        type: "archive",
-                        url: "http://github.com/rock-core/autoproj/release/autoproj-2.1.tgz"
-                    )
-                end
-                it "allows only github urls" do
-                    assert_nil Daemon.parse_repo_url_from_vcs(
-                        type: "git",
-                        url: "git@bitbucket.org:rock-core/autoproj"
-                    )
-                    assert_nil Daemon.parse_repo_url_from_vcs(
-                        type: "git",
-                        url: "http://bitbucket.org:rock-core/autoproj"
-                    )
-                end
-            end
-
             describe "#packages" do
                 it "ignores packages that do not have a valid vcs" do
                     autoproj_daemon_add_package(
                         "foo",
                         type: "git",
-                        url: "https://gitlab.org/owner/foo",
+                        url: "https://dummy.com/owner/foo",
                         remote_branch: "develop"
                     )
+                    autoproj_daemon_add_package("bar", type: "none")
                     assert cli.packages.empty?
                 end
                 it "ignores packages with frozen commits" do
@@ -170,26 +170,26 @@ module Autoproj
                 it "properly handles package sets" do
                     autoproj_daemon_add_package_set(
                         "rock", type: "git",
-                                url: "https://github.com/rock-core/package_set",
+                                url: "git://github.com/rock-core/package_set",
                                 remote_branch: "develop"
                     )
 
                     pkg_set = cli.packages.first
-                    assert_equal "rock-core", pkg_set.owner
-                    assert_equal "package_set", pkg_set.name
+                    assert_equal "git://github.com/rock-core/package_set",
+                                 pkg_set.repo_url
+
                     assert_equal "rock", pkg_set.package
                     assert pkg_set.package_set?
                 end
                 it "properly handles packages" do
                     autoproj_daemon_add_package(
                         "tools/roby", type: "git",
-                                      url: "https://github.com/rock-core/tools-roby",
+                                      url: "git://github.com/rock-core/tools-roby",
                                       master: "master"
                     )
 
                     pkg = cli.packages.first
-                    assert_equal "rock-core", pkg.owner
-                    assert_equal "tools-roby", pkg.name
+                    assert_equal "git://github.com/rock-core/tools-roby", pkg.repo_url
                     assert_equal "tools/roby", pkg.package
                     refute pkg.package_set?
                 end
@@ -197,8 +197,6 @@ module Autoproj
 
             describe "#configure" do
                 it "configures daemon" do
-                    flexmock(ws.config)
-                        .should_receive(:configure).with("daemon_api_key").once
                     flexmock(ws.config)
                         .should_receive(:configure).with("daemon_polling_period")
                         .at_least.once

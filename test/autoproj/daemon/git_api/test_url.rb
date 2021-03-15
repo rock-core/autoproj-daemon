@@ -40,6 +40,11 @@ module Autoproj
                     assert_equal "foo/bar", URL.new("git://www.github.com/FOO/bar").path
                     assert_equal "foo/bar", URL.new("git@GITHUB.COM:FOO///BAR").path
                 end
+
+                it "returns the full path" do
+                    assert_equal "github.com/foo/bar",
+                                 URL.new("git://GITHUB.COM/foo/bar.git").full_path
+                end
             end
         end
     end

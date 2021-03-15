@@ -11,7 +11,7 @@ module Autoproj
                 # @return [String]
                 attr_reader :raw
 
-                GIT_RX = /([A-Za-z0-9\-_.]+)@([A-Za-z0-9\-_.]+):(.*)/.freeze
+                GIT_RX = /^([A-Za-z0-9\-_.]+)@([A-Za-z0-9\-_.]+):(.*)$/.freeze
 
                 def initialize(url)
                     @raw = url
@@ -51,6 +51,11 @@ module Autoproj
                     uri.path.sub(/.git$/, "")[1..-1]
                 end
 
+                # @return [String]
+                def full_path
+                    "#{host}/#{path}"
+                end
+
                 # @param [String] url
                 # @return [Boolean]
                 def same?(url)
@@ -68,6 +73,11 @@ module Autoproj
                 # @return [Boolean]
                 def ==(other)
                     eql?(other)
+                end
+
+                # @return [Fixnum]
+                def hash
+                    [host, path].hash
                 end
             end
         end

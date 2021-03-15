@@ -4,7 +4,7 @@ require "autoproj"
 require "net/http"
 require "uri"
 require "json"
-require "autoproj/daemon/github/pull_request"
+require "autoproj/daemon/git_api/pull_request"
 
 module Autoproj
     module Daemon
@@ -46,25 +46,22 @@ module Autoproj
 
             # Publish a change indicating that a pull request was modified
             #
-            # @param [Github::PullRequest] pull_request
+            # @param [GitAPI::PullRequest] pull_request
             # @return [Boolean] true if the posting was successful, false otherwise
             def post_pull_request_changes(pull_request)
-                base_repository =
-                    "https://github.com/#{pull_request.base_owner}/"\
-                    "#{pull_request.base_name}"
                 branch_name = GitPoller.branch_name_by_pull_request(
                     @project, pull_request
                 )
 
                 post_change(
-                    author: pull_request.head_owner,
+                    author: pull_request.author,
                     branch: branch_name,
                     category: "pull_request",
                     codebase: "",
-                    committer: pull_request.head_owner,
-                    repository: base_repository,
+                    committer: pull_request.last_committer,
+                    repository: pull_request.repository_url,
                     revision: pull_request.head_sha,
-                    revlink: "#{base_repository}/pull/#{pull_request.number}",
+                    revlink: pull_request.web_url,
                     when_timestamp: pull_request.updated_at.tv_sec
                 )
             end
@@ -72,12 +69,9 @@ module Autoproj
             # Publish changes that happened to a mainline branch
             #
             # @param [PackageRepository] _package
-            # @param [Github::Branch] remote_branch
+            # @param [GitAPI::Branch] remote_branch
             # @return [Boolean]
             def post_mainline_changes(_package, remote_branch)
-                repository =
-                    "https://github.com/#{remote_branch.owner}/#{remote_branch.name}"
-
                 post_change(
                     # Codebase is a single codebase - i.e. single repo, but
                     # tracked across forks
@@ -86,9 +80,9 @@ module Autoproj
                     category: "push",
                     codebase: "",
                     committer: remote_branch.commit_author,
-                    repository: repository,
+                    repository: remote_branch.repository_url,
                     revision: remote_branch.sha,
-                    revlink: repository,
+                    revlink: remote_branch.repository_url,
                     when_timestamp: remote_branch.commit_date.tv_sec
                 )
             end

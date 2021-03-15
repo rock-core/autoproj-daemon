@@ -72,8 +72,9 @@ module Autoproj
                 it "adds buildbot force build paramaters" do
                     now = Time.now
                     flexmock(bb).should_receive(:post_change).with(
-                        author: "contributor",
-                        branch: "autoproj/wetpaint/tidewise/drivers-gps_ublox/pulls/22",
+                        author: "author",
+                        branch: "autoproj/wetpaint/github.com/"\
+                                "tidewise/drivers-gps_ublox/pulls/22",
                         category: "pull_request",
                         codebase: "",
                         committer: "contributor",
@@ -84,12 +85,11 @@ module Autoproj
                     ).once
 
                     pr = autoproj_daemon_add_pull_request(
-                        base_owner: "tidewise",
-                        base_name: "drivers-gps_ublox",
+                        repo_url: "git@github.com:tidewise/drivers-gps_ublox.git",
                         number: 22,
                         base_branch: "master",
-                        head_owner: "contributor",
-                        head_name: "drivers-gps_ublox_fork",
+                        last_committer: "contributor",
+                        author: "author",
                         head_branch: "feature",
                         head_sha: "abcdef",
                         updated_at: now
@@ -114,8 +114,7 @@ module Autoproj
                     ).once
 
                     branch = autoproj_daemon_add_branch(
-                        "tidewise",
-                        "drivers-gps_ublox",
+                        repo_url: "git@github.com:tidewise/drivers-gps_ublox.git",
                         branch_name: "devel",
                         sha: "abcdef",
                         commit_author: "g-arjones",

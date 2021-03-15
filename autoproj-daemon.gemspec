@@ -11,7 +11,7 @@ Gem::Specification.new do |spec| # rubocop:disable Metrics/BlockLength
     spec.email         = ["gabriel.arjones@tidewise.io"]
 
     spec.homepage      = "https://github.com/rock-core/autoproj-daemon"
-    spec.summary       = "daemon-plugin that watches github repositories"
+    spec.summary       = "daemon-plugin that watches git repositories"
     spec.license       = "BSD 3-Clause"
     spec.required_ruby_version = ">= 2.4"
 

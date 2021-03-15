@@ -41,28 +41,6 @@ module Autoproj
                     @model["head"]["sha"]
                 end
 
-                # @return [String]
-                def base_owner
-                    @model["base"]["user"]["login"]
-                end
-
-                # @return [String]
-                def head_owner
-                    @model["head"]["user"]["login"]
-                end
-
-                # @return [String]
-                def base_name
-                    @model["base"]["repo"]["name"]
-                end
-
-                # @return [String]
-                def head_name
-                    return nil unless @model["head"]["repo"]
-
-                    @model["head"]["repo"]["name"]
-                end
-
                 # @return [Time]
                 def updated_at
                     Time.parse(@model["updated_at"])
@@ -71,6 +49,25 @@ module Autoproj
                 # @return [String]
                 def body
                     @model["body"]
+                end
+
+                # @return [String]
+                def web_url
+                    @model["html_url"]
+                end
+
+                # @return [String]
+                def repository_url
+                    @model["base"]["repo"]["html_url"]
+                end
+
+                # @return [String]
+                def author
+                    @model["user"]["login"]
+                end
+
+                def last_committer
+                    @model["head"]["user"]["login"]
                 end
             end
         end

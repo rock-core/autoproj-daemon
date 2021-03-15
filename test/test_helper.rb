@@ -15,12 +15,9 @@ module Autoproj
     module Daemon
         # Stores github models
         class GithubStorage
-            RateLimit = Struct.new(:remaining)
-
-            attr_reader :rate_limit, :pull_requests, :branches, :users
+            attr_reader :pull_requests, :branches
 
             def initialize
-                @rate_limit = RateLimit.new(1000)
                 @pull_requests = Hash.new { |h, k| h[k] = [] }
                 @branches = Hash.new { |h, k| h[k] = [] }
                 @users = Hash.new { |h, k| h[k] = {} }
@@ -32,31 +29,18 @@ module Autoproj
             attr_accessor :storage
 
             def pull_requests(repo, _options = {})
-                @storage.pull_requests[repo]
-            end
-
-            def pull_request(repo, number, _options = {})
-                @storage.pull_requests[repo].find { |pr| pr["number"] == number }
+                repo = GitAPI::URL.new(repo)
+                @storage.pull_requests[repo].dup
             end
 
             def branches(repo, _options = {})
-                @storage.branches[repo]
+                repo = GitAPI::URL.new(repo)
+                @storage.branches[repo].dup
             end
 
             def branch(repo, name, _options = {})
-                @storage.branches[repo].find { |branch| branch["name"] == name }
-            end
-
-            def user(user, _options = {})
-                @storage.users[user]
-            end
-
-            def rate_limit
-                @storage.rate_limit
-            end
-
-            def rate_limit!
-                @storage.rate_limit
+                repo = GitAPI::URL.new(repo)
+                @storage.branches[repo].find { |branch| branch.branch_name == name }
             end
         end
 
@@ -104,8 +88,8 @@ module Autoproj
                 autoproj_daemon_git_init("autoproj", dummy: false)
             end
 
-            def autoproj_daemon_mock_github_api
-                flexmock(Octokit::Client).new_instances do |i|
+            def autoproj_daemon_mock_git_api
+                flexmock(GitAPI::Client).new_instances do |i|
                     i.extend MockClient
                     i.storage = @storage
                 end
@@ -127,10 +111,6 @@ module Autoproj
                 autoproj_daemon_run_git(dir, "add", ".")
                 autoproj_daemon_run_git(dir, "commit", "-m", "Initial commit")
                 autoproj_daemon_run_git(dir, "push", "-f", "autobuild", "master")
-            end
-
-            def autoproj_daemon_buildconf_package
-                @autoproj_daemon_buildconf_package ||= CLI::Daemon.buildconf_package(@ws)
             end
 
             def autoproj_daemon_add_package(name, vcs)
@@ -166,23 +146,19 @@ module Autoproj
             end
 
             def autoproj_daemon_add_package_repository(
-                pkg_name, owner, name, branch = "master"
+                pkg_name, url, branch = "master"
             )
                 pkg = autoproj_daemon_add_package(
                     pkg_name,
                     type: "git",
-                    url: "https://github.com/#{owner}/#{name}",
+                    url: url,
                     branch: branch
                 )
 
                 PackageRepository.new(
-                    pkg_name, owner, name, pkg.vcs.to_hash,
+                    pkg_name, pkg.vcs.to_hash,
                     ws: ws, local_dir: pkg.srcdir
                 )
-            end
-
-            def autoproj_daemon_define_user(user, **options)
-                @storage.users[user] = JSON.parse(options.to_json)
             end
 
             def autoproj_daemon_add_package_set(name, vcs)
@@ -210,72 +186,48 @@ module Autoproj
                 )
             end
 
-            def autoproj_daemon_create_pull_request(options)
-                Autoproj::Daemon::Github::PullRequest.from_ruby_hash(
+            def autoproj_daemon_create_pull_request(**options)
+                git_url = Autoproj::Daemon::GitAPI::URL.new(options[:repo_url])
+                Autoproj::Daemon::GitAPI::PullRequest.from_ruby_hash(
+                    git_url,
                     state: options[:state],
                     number: options[:number],
                     title: options[:title],
                     updated_at: options[:updated_at] || Time.now,
                     body: options[:body],
+                    html_url: "https://#{git_url.full_path}/pull/#{options[:number]}",
+                    user: {
+                        login: options[:author]
+                    },
                     base: {
                         ref: options[:base_branch],
                         sha: options[:base_sha],
-                        user: {
-                            login: options[:base_owner]
-                        },
                         repo: {
-                            name: options[:base_name]
+                            html_url: "https://#{git_url.full_path}"
                         }
                     },
                     head: {
                         ref: options[:head_branch],
                         sha: options[:head_sha],
                         user: {
-                            login: options[:head_owner]
-                        },
-                        repo: {
-                            name: options[:head_name]
+                            login: options[:last_committer]
                         }
                     }
                 )
             end
 
             def autoproj_daemon_add_pull_request(**options)
-                pr = Autoproj::Daemon::Github::PullRequest.from_ruby_hash(
-                    state: options[:state] || "open",
-                    number: options[:number],
-                    title: options[:title],
-                    updated_at: options[:updated_at] || Time.now,
-                    body: options[:body],
-                    base: {
-                        ref: options[:base_branch],
-                        sha: options[:base_sha],
-                        user: {
-                            login: options[:base_owner]
-                        },
-                        repo: {
-                            name: options[:base_name]
-                        }
-                    },
-                    head: {
-                        ref: options[:head_branch],
-                        sha: options[:head_sha],
-                        user: {
-                            login: options[:head_owner]
-                        },
-                        repo: {
-                            name: options[:head_name]
-                        }
-                    }
-                )
-
-                @storage.pull_requests["#{pr.base_owner}/#{pr.base_name}"] << pr.model
+                git_url = Autoproj::Daemon::GitAPI::URL.new(options[:repo_url])
+                pr = autoproj_daemon_create_pull_request(**options)
+                @storage.pull_requests[git_url] << pr
                 pr
             end
 
-            def autoproj_daemon_add_branch(owner, name, options)
-                branch = Autoproj::Daemon::Github::Branch.from_ruby_hash(
-                    owner, name,
+            def autoproj_daemon_create_branch(**options)
+                git_url = Autoproj::Daemon::GitAPI::URL.new(options[:repo_url])
+                Autoproj::Daemon::GitAPI::Branch.from_ruby_hash(
+                    git_url,
+                    repository_url: "https://#{git_url.full_path}",
                     name: options[:branch_name],
                     commit: {
                         sha: options[:sha],
@@ -287,8 +239,12 @@ module Autoproj
                         }
                     }
                 )
+            end
 
-                @storage.branches["#{branch.owner}/#{branch.name}"] << branch.model
+            def autoproj_daemon_add_branch(**options)
+                git_url = Autoproj::Daemon::GitAPI::URL.new(options[:repo_url])
+                branch = autoproj_daemon_create_branch(**options)
+                @storage.branches[git_url] << branch
                 branch
             end
         end

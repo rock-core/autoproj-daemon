@@ -18,12 +18,13 @@ module Autoproj
                         type: "git",
                         url: "git@github.com:rock-core/buildconf"
                     )
+                    ws.config.daemon_set_service("github.com", "apikey")
                     @client = Client.new(ws)
                 end
 
                 describe "live API tests" do
                     before do
-                        skip if ENV["AUTOPROJ_SKIP_LIVE_API_TESTS"]
+                        skip unless ENV["GITHUB_API"]
                     end
 
                     it "returns an array of pull requests" do
@@ -122,6 +123,80 @@ module Autoproj
                             assert_equal 1, branches.size
                             assert_equal Branch, branches.first.class
                         end
+
+                        it "returns the repository web url" do
+                            branch = client.branch(url, "master")
+                            assert_equal "https://github.com/rock-core/buildconf",
+                                         branch.repository_url
+                        end
+                    end
+
+                    describe "PULL_REQUEST_URL_RX" do
+                        it "parses owner, name and number from PR url" do
+                            owner, name, number =
+                                Services::GitHub::PULL_REQUEST_URL_RX.match(
+                                    "https://github.com////g-arjones._1//demo.pkg_1//pull//122"
+                                )[1..-1]
+
+                            assert_equal "g-arjones._1", owner
+                            assert_equal "demo.pkg_1", name
+                            assert_equal "122", number
+                        end
+                    end
+
+                    describe "OWNER_NAME_AND_NUMBER_RX" do
+                        it "parses owner, name and number from PR path" do
+                            owner, name, number =
+                                Services::GitHub::OWNER_NAME_AND_NUMBER_RX.match(
+                                    "g-arjones._1/demo.pkg_1#122"
+                                )[1..-1]
+
+                            assert_equal "g-arjones._1", owner
+                            assert_equal "demo.pkg_1", name
+                            assert_equal "122", number
+                        end
+                    end
+
+                    describe "NUMBER_RX" do
+                        it "parses the PR number from relative PR path" do
+                            number = Services::GitHub::NUMBER_RX.match("#122")[1]
+                            assert_equal "122", number
+                        end
+                    end
+
+                    describe "#extract_info_from_pull_request_ref" do
+                        attr_reader :pr
+
+                        before do
+                            @pr = autoproj_daemon_create_pull_request(
+                                repo_url: "git@github.com:g-arjones._1/demo.pkg_1.git",
+                                number: 22
+                            )
+                        end
+
+                        it "returns info when given a url" do
+                            info = ["https://github.com/g-arjones._1/demo.pkg_1", 22]
+                            assert_equal info, client.extract_info_from_pull_request_ref(
+                                "https://github.com/g-arjones._1/demo.pkg_1/pull/22", pr
+                            )
+                        end
+                        it "returns info when given a full path" do
+                            info = ["https://github.com/g-arjones._1/demo.pkg_1", 22]
+                            assert_equal info, client.extract_info_from_pull_request_ref(
+                                "g-arjones._1/demo.pkg_1#22", pr
+                            )
+                        end
+                        it "returns info when given a relative path" do
+                            info = ["https://github.com/g-arjones._1/demo.pkg_1", 22]
+                            assert_equal info, client.extract_info_from_pull_request_ref(
+                                "#22", pr
+                            )
+                        end
+                        it "returns nil when the item does not look like a PR ref" do
+                            assert_nil client.extract_info_from_pull_request_ref(
+                                "Feature", pr
+                            )
+                        end
                     end
 
                     describe "pull request data" do
@@ -178,38 +253,33 @@ module Autoproj
                                          pull_request.head_sha
                         end
 
-                        it "returns the base owner" do
-                            pull_request = client.pull_requests(url).first
-                            assert_equal "microsoft", pull_request.base_owner
-                        end
-
-                        it "returns the head owner" do
-                            pull_request = client.pull_requests(url).first
-                            assert_equal "vedipen", pull_request.head_owner
-                        end
-
-                        it "returns the base repo name" do
-                            pull_request = client.pull_requests(url).first
-                            assert_equal "vscode", pull_request.base_name
-                        end
-
-                        it "returns the head repo name" do
-                            pull_request = client.pull_requests(url).first
-                            assert_equal "vscode", pull_request.head_name
-                        end
-
-                        it "returns nil if head repo is nil" do
-                            pull_request = client.pull_requests(url).first
-                            @model = pull_request.instance_variable_get(:@model)
-                            @model["head"]["repo"] = nil
-                            assert_nil pull_request.head_name
-                        end
-
                         it "returns the pull request body" do
                             pull_request = client.pull_requests(url).first
                             assert_equal "Faced the same issue #80837 "\
                                 "and didn't see much activity.\r\nThis PR fixes #80837 ",
                                          pull_request.body
+                        end
+
+                        it "returns the pull request url" do
+                            pull_request = client.pull_requests(url).first
+                            assert_equal "https://github.com/microsoft/vscode/pull/81609",
+                                         pull_request.web_url
+                        end
+
+                        it "returns the base repository url" do
+                            pull_request = client.pull_requests(url).first
+                            assert_equal "https://github.com/microsoft/vscode",
+                                         pull_request.repository_url
+                        end
+
+                        it "returns the pull request author" do
+                            pull_request = client.pull_requests(url).first
+                            assert_equal "vedipen", pull_request.author
+                        end
+
+                        it "returns the last commit author" do
+                            pull_request = client.pull_requests(url).first
+                            assert_equal "vedipen", pull_request.last_committer
                         end
                     end
                 end

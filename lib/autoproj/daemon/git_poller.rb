@@ -3,9 +3,10 @@
 require "autoproj/daemon/buildbot"
 require "autoproj/daemon/pull_request_cache"
 require "autoproj/daemon/package_repository"
-require "autoproj/daemon/github/client"
-require "autoproj/daemon/github/branch"
-require "autoproj/daemon/github/pull_request"
+require "autoproj/daemon/git_api/branch"
+require "autoproj/daemon/git_api/client"
+require "autoproj/daemon/git_api/pull_request"
+require "autoproj/daemon/git_api/url"
 require "autoproj/daemon/overrides_retriever"
 require "date"
 require "yaml"
@@ -22,7 +23,7 @@ module Autoproj
             # @return [Autoproj::Daemon::PackageRepository]
             attr_reader :buildconf
 
-            # @return [Github::Client]
+            # @return [GitAPI::Client]
             attr_reader :client
 
             # @return [PullRequestCache]
@@ -31,16 +32,16 @@ module Autoproj
             # @return [Array<Autoproj::Daemon::PackageRepository>]
             attr_reader :packages
 
-            # @return [Array<Github::Branch>]
+            # @return [Array<GitAPI::Branch>]
             attr_reader :branches
 
-            # @return [Array<Github::Branch>]
+            # @return [Array<GitAPI::Branch>]
             attr_reader :package_branches
 
-            # @return [Array<Github::PullRequest>]
+            # @return [Array<GitAPI::PullRequest>]
             attr_reader :pull_requests
 
-            # @return [Array<Github::PullRequest>]
+            # @return [Array<GitAPI::PullRequest>]
             attr_reader :pull_requests_stale
 
             # @return [Autoproj::Workspace]
@@ -50,11 +51,12 @@ module Autoproj
             attr_reader :updater
 
             # @param [PackageRepository] buildconf Buildconf repository
-            # @param [Github::Client] client Github client API
+            # @param [GitAPI::Client] client Git client API
             # @param [Array<Autoproj::Daemon::PackageRepository>] packages An array
             #     with all package repositories to watch
             # @param [Autoproj::Daemon::PullRequestCache] cache Pull request cache
             # @param [Autoproj::Workspace] workspace Current workspace
+            # @param [Autoproj::Daemon::WorkspaceUpdater] workspace Current workspace
             def initialize(
                 buildconf, client, packages, cache, workspace, updater, project: "daemon"
             )
@@ -82,32 +84,28 @@ module Autoproj
 
             # @return [Array<Autoproj::Daemon::PackageRepository>]
             def unique_packages
-                packages.uniq do |pkg|
-                    [pkg.owner, pkg.name, pkg.branch]
-                end
+                packages.uniq { |pkg| [GitAPI::URL.new(pkg.repo_url), pkg.branch] }
             end
 
-            # @return [Array<Github::Branch>]
+            # @return [Array<GitAPI::Branch>]
             def update_package_branches
                 filtered_repos = unique_packages
                 Autoproj.message "Fetching branches from "\
                     "#{filtered_repos.size} repositories..."
 
                 @package_branches = filtered_repos.flat_map do |pkg|
-                    client.branch(pkg.owner, pkg.name, pkg.branch)
+                    client.branch(pkg.repo_url, pkg.branch)
                 end
 
                 Autoproj.message "Tracking #{package_branches.size} branches"
                 package_branches
             end
 
-            # @param [Github::Branch] branch
+            # @param [GitAPI::Branch] branch
             # @return [Array<Autoproj::Daemon::PackageRepository>]
             def packages_by_branch(branch)
                 packages.select do |pkg|
-                    pkg.name == branch.name &&
-                        pkg.owner == branch.owner &&
-                        pkg.branch == branch.branch_name
+                    branch.git_url.same?(pkg.repo_url) && pkg.branch == branch.branch_name
                 end
             end
 
@@ -121,7 +119,7 @@ module Autoproj
                         next if pkg.head_sha == branch.sha
 
                         Autoproj.message(
-                            "Push detected on #{pkg.package}, local: #{pkg.head_sha} "\
+                            "Push detected on #{pkg.package}: local: #{pkg.head_sha}, "\
                             "remote: #{branch.sha}"
                         )
 
@@ -142,13 +140,11 @@ module Autoproj
 
             # @return [Boolean]
             def trigger_build_if_buildconf_changed
-                buildconf_branch = client.branch(
-                    buildconf.owner, buildconf.name, buildconf.branch
-                )
+                buildconf_branch = client.branch(buildconf.repo_url, buildconf.branch)
                 return false if buildconf.head_sha == buildconf_branch.sha
 
                 Autoproj.message(
-                    "Push detected on the buildconf, local: #{buildconf.head_sha} "\
+                    "Push detected on the buildconf: local: #{buildconf.head_sha}, "\
                     "remote: #{buildconf_branch.sha}"
                 )
                 bb.post_mainline_changes(buildconf, buildconf_branch)
@@ -166,19 +162,14 @@ module Autoproj
                 updater.restart_and_update
             end
 
-            # @return [Array<Github::PullRequest>]
+            # @return [Array<GitAPI::PullRequest>]
             def update_pull_requests
                 filtered_repos = unique_packages
                 Autoproj.message "Fetching pull requests from "\
                     "#{filtered_repos.size} repositories..."
 
                 @pull_requests = filtered_repos.flat_map do |pkg|
-                    client.pull_requests(
-                        pkg.owner,
-                        pkg.name,
-                        base: pkg.branch,
-                        state: "open"
-                    )
+                    client.pull_requests(pkg.repo_url, base: pkg.branch, state: "open")
                 end
                 @pull_requests, @pull_requests_stale = @pull_requests.partition do |pr|
                     (Time.now.to_date - pr.updated_at.to_date)
@@ -192,37 +183,38 @@ module Autoproj
                 @pull_requests
             end
 
-            BuildconfBranch = Struct.new :project, :owner, :repository, :pull_id
+            BuildconfBranch = Struct.new :project, :full_path, :pull_id
 
             # Parse the buildconf ref into the info it contains
             #
-            # The pattern autoproj/PROJECT/OWNER/REPO/pulls/ID, matching
+            # The pattern autoproj/PROJECT/FULL_PATH/pulls/ID, matching
             # what {#branch_name_by_pull_request} does.
             #
+            # @param [String] branch
             # @return [BuildconfBranch,nil] the info, or nil if the branch
             #    name does not match the expected pattern
-            def parse_buildconf_branch(branch)
-                elements = branch.split("/")
-                return unless elements.size == 6
-                return unless elements[0] == "autoproj"
-                return unless elements[4] == "pulls"
+            def parse_buildconf_branch(branch_name)
+                rx = %r{^autoproj/([A-Za-z0-9_\-.]+)/(.*)/pulls/(\d+)$}
+                unless (m = branch_name.match(rx))
+                    return
+                end
+                return if branch_name.split("/").size < 7
+
+                _, project, full_path, number = m.to_a
 
                 pull_id =
                     begin
-                        Float(elements[5])
+                        Integer(number)
                     rescue ArgumentError
                         return
                     end
 
-                BuildconfBranch.new(elements[1], elements[2], elements[3], pull_id)
+                BuildconfBranch.new(project, full_path, pull_id)
             end
 
-            # @return [Array<Github::Branch>]
+            # @return [Array<GitAPI::Branch>]
             def update_branches
-                @branches = client.branches(
-                    buildconf.owner,
-                    buildconf.name
-                )
+                @branches = client.branches(@buildconf.repo_url)
             end
 
             # @return [void]
@@ -239,34 +231,35 @@ module Autoproj
                     next false unless branch_info.project == @project
 
                     pull_requests.none? do |pr|
-                        pr.base_owner == branch_info.owner &&
-                            pr.base_name == branch_info.repository &&
+                        pr.git_url.full_path == branch_info.full_path &&
                             pr.number == branch_info.pull_id
                     end
                 end
                 delete_branches(stale_branches)
             end
 
+            # @param [Array<GitAPI::Branch>] branches
             # @return [void]
             def delete_branches(branches)
                 branches.each do |branch|
-                    Autoproj.message "Deleting stale branch #{branch.branch_name} "\
-                        "from #{branch.owner}/#{branch.name}"
+                    Autoproj.message "Deleting stale branch #{branch.branch_name}"
                     client.delete_branch(branch)
                 end
             end
 
+            # @param [GitAPI::PullRequest] pull_request
             # @return [String]
             def self.branch_name_by_pull_request(project, pull_request)
-                "autoproj/#{project}/#{pull_request.base_owner}/"\
-                    "#{pull_request.base_name}/pulls/#{pull_request.number}"
+                "autoproj/#{project}/#{pull_request.git_url.full_path}"\
+                    "/pulls/#{pull_request.number}"
             end
 
+            # @param [GitAPI::PullRequest] pull_request
             def branch_name_by_pull_request(pull_request)
                 self.class.branch_name_by_pull_request(@project, pull_request)
             end
 
-            # @return [(Array<Github::Branch>, Array<Github::Branch>)]
+            # @return [(Array<GitAPI::Branch>, Array<GitAPI::Branch>)]
             def create_missing_branches
                 created = []
                 existing = []
@@ -279,8 +272,7 @@ module Autoproj
                     if found_branch
                         existing << found_branch
                     else
-                        Autoproj.message "Creating branch #{branch_name} "\
-                            "on #{buildconf.owner}/#{buildconf.name}"
+                        Autoproj.message "Creating branch #{branch_name}"
                         created << create_branch_for_pr(branch_name, pr)
                     end
                 end
@@ -296,7 +288,7 @@ module Autoproj
 
             # @param [String] branch_name
             # @param [Array<Hash>] overrides
-            # @return [Github::Branch]
+            # @return [GitAPI::Branch]
             def commit_and_push_overrides(branch_name, overrides)
                 commit_id =
                     Autoproj::Ops::Snapshot.create_commit(
@@ -315,11 +307,11 @@ module Autoproj
                 @importer.run_git_bare(
                     @main, "push", "-fu", @importer.remote_name, branch_name
                 )
-                client.branch(buildconf.owner, buildconf.name, branch_name)
+                client.branch(buildconf.repo_url, branch_name)
             end
 
-            # @param [Github::PullRequest] pull_request
-            # @return [Github::Branch]
+            # @param [GitAPI::PullRequest] pull_request
+            # @return [GitAPI::Branch]
             def create_branch_for_pr(branch_name, pull_request)
                 overrides = overrides_for_pull_request(pull_request)
                 created = commit_and_push_overrides(branch_name, overrides)
@@ -327,17 +319,16 @@ module Autoproj
                 created
             end
 
-            # @param [Github::PullRequest] pull_request
+            # @param [GitAPI::PullRequest] pull_request
             # @return [Array<PackageRepository>]
             def packages_affected_by_pull_request(pull_request)
                 packages.select do |pkg|
-                    pkg.name == pull_request.base_name &&
-                        pkg.owner == pull_request.base_owner &&
+                    pull_request.git_url.same?(pkg.repo_url) &&
                         pkg.branch == pull_request.base_branch
                 end
             end
 
-            # @param [Github::PullRequest] pull_request
+            # @param [GitAPI::PullRequest] pull_request
             # @return [Array<Hash>]
             def overrides_for_pull_request(pull_request)
                 retriever = OverridesRetriever.new(client)
@@ -360,22 +351,22 @@ module Autoproj
                 end
             end
 
-            # @param [Github::Branch] branch
-            # @return [Github::PullRequest, nil]
+            # @param [GitAPI::Branch] branch
+            # @return [GitAPI::PullRequest, nil]
             def pull_request_by_branch(branch)
                 pull_requests.find do |pr|
                     branch_name_by_pull_request(pr) == branch.branch_name
                 end
             end
 
-            # @param [Github::Branch] branch
+            # @param [GitAPI::Branch] branch
             # @return [void]
             def trigger_build(branch)
                 pr = pull_request_by_branch(branch)
                 bb.post_pull_request_changes(pr)
             end
 
-            # @param [Array<Github::Branch>] branches
+            # @param [Array<GitAPI::Branch>] branches
             # @return [void]
             def trigger_build_if_branch_changed(branches)
                 branches.each do |branch|
@@ -383,8 +374,7 @@ module Autoproj
                     overrides = overrides_for_pull_request(pr)
                     next unless cache.changed?(pr, overrides)
 
-                    Autoproj.message "Updating "\
-                                     "#{pr.base_owner}/#{pr.base_name}##{pr.number}"
+                    Autoproj.message "Updating #{pr.git_url.full_path}##{pr.number}"
                     commit_and_push_overrides(branch.branch_name, overrides)
                     bb.post_pull_request_changes(pr)
                     cache.add(pr, overrides)

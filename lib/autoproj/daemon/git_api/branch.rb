@@ -26,6 +26,11 @@ module Autoproj
                 def commit_date
                     Time.parse(@model["commit"]["commit"]["author"]["date"])
                 end
+
+                # @return [String]
+                def repository_url
+                    @model["repository_url"]
+                end
             end
         end
     end

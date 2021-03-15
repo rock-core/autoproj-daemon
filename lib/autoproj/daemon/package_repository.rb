@@ -11,12 +11,6 @@ module Autoproj
             # @return [String]
             attr_reader :package
 
-            # @return [String]
-            attr_reader :name
-
-            # @return [String]
-            attr_reader :owner
-
             # @return [Hash]
             attr_reader :vcs
 
@@ -26,10 +20,8 @@ module Autoproj
             # @return [Autoproj::Workspace]
             attr_reader :ws
 
-            def initialize(package, owner, name, vcs, options = {})
+            def initialize(package, vcs, options = {})
                 @package = package
-                @name = name
-                @owner = owner
                 @vcs = vcs
                 @package_set = options[:package_set]
                 @buildconf = options[:buildconf]
@@ -45,6 +37,11 @@ module Autoproj
             # @return [Boolean]
             def buildconf?
                 @buildconf
+            end
+
+            # @return [String]
+            def repo_url
+                vcs[:url]
             end
 
             # @return [String]

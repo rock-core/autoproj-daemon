@@ -1,12 +1,11 @@
 # frozen_string_literal: true
 
-require "autoproj/daemon/github/client"
-require "autoproj/daemon/github/branch"
 require "autoproj/daemon/buildbot"
+require "autoproj/daemon/git_api/client"
+require "autoproj/daemon/git_api/url"
 require "autoproj/daemon/git_poller"
 require "autoproj/daemon/pull_request_cache"
 require "autoproj/daemon/workspace_updater"
-require "octokit"
 
 module Autoproj
     module CLI
@@ -23,7 +22,7 @@ module Autoproj
             attr_reader :git_poller
             # @return [Autoproj::Daemon::PullRequestCache]
             attr_reader :cache
-            # @return [Autoproj::Daemon::Github::Client]
+            # @return [Autoproj::Daemon::GitAPI::Client]
             attr_reader :client
             # @return [Autoproj::Workspace]
             attr_reader :ws
@@ -46,8 +45,31 @@ module Autoproj
                     end
                 @project = [@ws.config.daemon_project, subsystem].compact.join("_")
                 @project = "daemon" if @project.empty?
+
+                unless @project =~ /^[A-Za-z0-9_\-.]+$/
+                    raise Autoproj::ConfigError, "Invalid project name"
+                end
+
                 @bb = Autoproj::Daemon::Buildbot.new(workspace, project: @project)
                 @updater = updater
+                @client = Autoproj::Daemon::GitAPI::Client.new(ws)
+            end
+
+            # @return [void]
+            def validate_buildconf
+                vcs = ws.manifest.main_package_set.vcs.to_hash
+                unless vcs[:type] == "git"
+                    raise Autoproj::ConfigError, "Main configuration should be "\
+                                                 "under git version control"
+                end
+
+                return if @client.supports? vcs[:url]
+
+                git_url = Autoproj::Daemon::GitAPI::URL.new(vcs[:url])
+                raise Autoproj::ConfigError, "Main configuration is hosted by "\
+                                             "#{git_url.host}, which is either "\
+                                             "unsupported or not properly "\
+                                             "configured"
             end
 
             # @return [void]
@@ -67,19 +89,27 @@ module Autoproj
                     installation_manifest.each_package_set.to_a
             end
 
-            VALID_URL_RX = /github.com/i.freeze
-            PARSE_URL_RX = %r{(?:[:/]([A-Za-z\d\-_]+))/(.+?)(?:.git$|$)+$}m.freeze
+            # @param [Hash] vcs
+            # @return [Boolean]
+            def ignored?(pkg)
+                name = pkg[:name] || pkg[:package_set]
+                vcs = pkg[:vcs]
 
-            # Parses a repository url
-            #
-            # @param [Hash] vcs The package vcs hash
-            # @return [Array<String>, nil] An array with the owner and repo name
-            def self.parse_repo_url_from_vcs(vcs)
-                return unless vcs[:type] == "git"
-                return unless vcs[:url] =~ VALID_URL_RX
-                return unless (match = PARSE_URL_RX.match(vcs[:url]))
+                unless vcs[:type] == "git"
+                    Autoproj.warn "Ignoring #{name} (not under git vcs)"
+                    return true
+                end
 
-                [match[1], match[2]]
+                git_url = Autoproj::Daemon::GitAPI::URL.new(vcs[:url])
+                unless @client.supports?(vcs[:url])
+                    Autoproj.warn "Ignoring #{name} (unconfigured/unsupported "\
+                                  "service: #{git_url.host})"
+                    return true
+                end
+                return false unless vcs[:commit] || vcs[:tag]
+
+                Autoproj.warn "Ignoring #{name} (pinned)"
+                true
             end
 
             # Return the list of packages in the current state of the workspace
@@ -91,16 +121,9 @@ module Autoproj
                 return @packages if @packages
 
                 @packages = resolve_packages.map do |pkg|
-                    vcs = pkg[:vcs]
-                    unless (match = self.class.parse_repo_url_from_vcs(vcs))
-                        Autoproj.message "ignored #{pkg.name}: VCS not matching"
-                        next
-                    end
-                    next if vcs[:commit] || vcs[:tag]
+                    next if ignored?(pkg)
 
-                    owner, name = match
                     package_set = pkg.kind_of? Autoproj::InstallationManifest::PackageSet
-
                     pkg = pkg.to_h
                     local_dir = if package_set
                                     pkg[:raw_local_dir]
@@ -110,9 +133,7 @@ module Autoproj
 
                     Autoproj::Daemon::PackageRepository.new(
                         pkg[:name] || pkg[:package_set],
-                        owner,
-                        name,
-                        vcs,
+                        pkg[:vcs],
                         package_set: package_set,
                         local_dir: local_dir,
                         ws: ws
@@ -127,24 +148,9 @@ module Autoproj
             def buildconf_package
                 return @buildconf_package if @buildconf_package
 
-                @buildconf_package ||= self.class.buildconf_package(ws)
-            end
-
-            # Create a package object to represent a workspace's buildocnf
-            #
-            # @return [Autoproj::Daemon::PackageRepository]
-            def self.buildconf_package(ws)
                 vcs = ws.manifest.main_package_set.vcs.to_hash
-                unless (match = parse_repo_url_from_vcs(vcs))
-                    raise Autoproj::ConfigError,
-                          "Main configuration not managed by github"
-                end
-
-                owner, name = match
                 @buildconf_package = Autoproj::Daemon::PackageRepository.new(
                     "main configuration",
-                    owner,
-                    name,
                     vcs,
                     buildconf: true,
                     local_dir: ws.config_dir,
@@ -154,14 +160,7 @@ module Autoproj
 
             # @return [void]
             def prepare
-                unless ws.config.daemon_api_key
-                    raise Autoproj::ConfigError,
-                          "required configuration daemon_api_key not set"
-                end
-                @client = Autoproj::Daemon::Github::Client.new(
-                    access_token: ws.config.daemon_api_key,
-                    auto_paginate: true
-                )
+                validate_buildconf
 
                 @git_poller = Autoproj::Daemon::GitPoller.new(
                     buildconf_package,
@@ -189,9 +188,6 @@ module Autoproj
             #
             # @return [void]
             def declare_configuration_options
-                ws.config.declare "daemon_api_key", "string",
-                                  doc: "Enter a github API key for authentication"
-
                 ws.config.declare "daemon_polling_period", "string",
                                   default: "60",
                                   doc: "Enter the github polling period"
@@ -230,7 +226,6 @@ module Autoproj
             def configure
                 declare_configuration_options
                 config = ws.config
-                config.configure "daemon_api_key"
                 config.configure "daemon_polling_period"
                 config.configure "daemon_buildbot_host"
                 config.configure "daemon_buildbot_port"

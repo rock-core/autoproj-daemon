@@ -15,14 +15,17 @@ module Autoproj
                 @ws = ws_create
                 @package = PackageRepository.new(
                     "drivers/iodrivers_base",
-                    "rock-drivers",
-                    "drivers-iodrivers_base",
-                    { type: "none" },
+                    { type: "git", url: "git://github.com/drivers-iodrivers_base" },
                     ws: ws
                 )
             end
 
             describe "#autobuild" do
+                it "returns the vcs url" do
+                    assert_equal "git://github.com/drivers-iodrivers_base",
+                                 package.repo_url
+                end
+
                 it "returns an existing autobuild package instance" do
                     autobuild = ws_add_package_to_layout(
                         :cmake,

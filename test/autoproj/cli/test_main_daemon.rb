@@ -54,6 +54,51 @@ module Autoproj
                     end
                 end
             end
+
+            describe "#set" do
+                it "sets git services parameters" do
+                    in_ws do
+                        flexmock(Autoproj).should_receive(:workspace).and_return(ws)
+
+                        MainDaemon.start(%w[set github.com abcdef])
+                        MainDaemon.start(%w[set gitlab.com foo https://gitlab gitlab])
+                        expected_hash = {
+                            "github.com" => {
+                                "access_token" => "abcdef"
+                            },
+                            "gitlab.com" => {
+                                "service" => "gitlab",
+                                "api_endpoint" => "https://gitlab",
+                                "access_token" => "foo"
+                            }
+                        }
+
+                        ws.load_config
+                        assert_equal expected_hash, ws.config.daemon_services
+                    end
+                end
+            end
+
+            describe "#unset" do
+                it "unsets git services parameters" do
+                    in_ws do
+                        flexmock(Autoproj).should_receive(:workspace).and_return(ws)
+
+                        MainDaemon.start(%w[set github.com abcdef])
+                        MainDaemon.start(%w[set gitlab.com foo https://gitlab gitlab])
+                        MainDaemon.start(%w[unset gitlab.com])
+
+                        expected_hash = {
+                            "github.com" => {
+                                "access_token" => "abcdef"
+                            }
+                        }
+
+                        ws.load_config
+                        assert_equal expected_hash, ws.config.daemon_services
+                    end
+                end
+            end
         end
     end
 end

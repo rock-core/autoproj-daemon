@@ -12,6 +12,9 @@ module Autoproj
                 # @return [GitAPI::URL]
                 attr_reader :git_url
 
+                # @return [Hash]
+                attr_reader :model
+
                 def self.from_ruby_hash(git_url, model)
                     from_json_string(git_url, model.to_json)
                 end
