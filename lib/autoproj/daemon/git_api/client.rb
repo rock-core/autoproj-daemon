@@ -204,7 +204,13 @@ module Autoproj
                 # @param [GitAPI::PullRequest] pull_request
                 # @return [String]
                 def extract_info_from_pull_request_ref(ref, pull_request)
-                    service(pull_request.git_url.raw)
+                    begin
+                        url = URL.new(ref).raw
+                    rescue StandardError
+                        url = pull_request.git_url.raw
+                    end
+
+                    service(url)
                         .extract_info_from_pull_request_ref(ref, pull_request)
                 end
             end

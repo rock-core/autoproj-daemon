@@ -19,6 +19,7 @@ module Autoproj
                                           url: "git@github.com:rock-core/buildconf.git")
 
                 ws.config.daemon_set_service("github.com", "apikey")
+                ws.config.daemon_set_service("gitlab.com", "apikey")
 
                 autoproj_daemon_mock_git_api
                 @client = GitAPI::Client.new(@ws)
@@ -200,6 +201,36 @@ module Autoproj
                     depends = retriever.retrieve_dependencies(pr_drivers_gps_ublox)
                     assert_equal [pr_driver_orogen_gps_ublox,
                                   pr_base_cmake], depends
+                end
+                it "allows depending on pull requests from different services" do
+                    body_drivers_orogen_gps_ublox = <<~EOFBODY
+                        Depends on:
+                        - [ ] https://gitlab.com/tidewise/drivers-gps_ublox/merge_requests/22
+                    EOFBODY
+                    pr_drivers_orogen_gps_ublox = add_pull_request(
+                        "tidewise", "drivers-orogen-gps_ublox", 11,
+                        body_drivers_orogen_gps_ublox
+                    )
+
+                    body_drivers_gps_ublox = <<~EOFBODY
+                        Depends on:
+                        - [ ] https://github.com/tidewise/base-cmake/pull/44
+                    EOFBODY
+
+                    pr_drivers_gps_ublox = autoproj_daemon_add_pull_request(
+                        repo_url: "git@gitlab.com:tidewise/drivers-gps_ublox",
+                        number: 22,
+                        state: "open",
+                        body: body_drivers_gps_ublox
+                    )
+
+                    pr_base_cmake = add_pull_request(
+                        "tidewise", "base-cmake", 44,
+                        nil
+                    )
+
+                    depends = retriever.retrieve_dependencies(pr_drivers_orogen_gps_ublox)
+                    assert_equal [pr_drivers_gps_ublox, pr_base_cmake], depends
                 end
             end
         end
