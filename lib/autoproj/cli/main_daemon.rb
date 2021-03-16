@@ -34,6 +34,8 @@ module Autoproj
                 daemon.clear_and_dump_cache if options[:clear_cache]
                 updater.update if options[:update]
                 daemon.start
+            rescue Autoproj::ConfigError => e
+                Autoproj.error e.message
             end
 
             desc "configure", "Configures autoproj daemon plugin"
