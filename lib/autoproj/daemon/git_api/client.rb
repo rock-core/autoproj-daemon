@@ -2,6 +2,7 @@
 
 require "autoproj"
 require "autoproj/daemon/git_api/services/github"
+require "autoproj/daemon/git_api/services/gitlab"
 require "autoproj/daemon/git_api/exceptions"
 require "autoproj/daemon/git_api/branch"
 require "autoproj/daemon/git_api/pull_request"
@@ -18,6 +19,11 @@ module Autoproj
                     "github.com" => {
                         "service" => "github",
                         "api_endpoint" => "https://api.github.com",
+                        "access_token" => nil
+                    },
+                    "gitlab.com" => {
+                        "service" => "gitlab",
+                        "api_endpoint" => "https://gitlab.com/api/v4",
                         "access_token" => nil
                     }
                 }.freeze

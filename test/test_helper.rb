@@ -207,7 +207,6 @@ module Autoproj
                         }
                     },
                     head: {
-                        ref: options[:head_branch],
                         sha: options[:head_sha],
                         user: {
                             login: options[:last_committer]

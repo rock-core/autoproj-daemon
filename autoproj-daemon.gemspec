@@ -35,6 +35,7 @@ Gem::Specification.new do |spec| # rubocop:disable Metrics/BlockLength
     spec.add_dependency "autoproj", "~> 2.12"
     spec.add_dependency "backports"
     spec.add_dependency "faraday-http-cache"
+    spec.add_dependency "gitlab"
     spec.add_dependency "octokit"
     spec.add_development_dependency "bundler"
     spec.add_development_dependency "flexmock"

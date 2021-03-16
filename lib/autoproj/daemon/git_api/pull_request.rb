@@ -32,11 +32,6 @@ module Autoproj
                 end
 
                 # @return [String]
-                def head_branch
-                    @model["head"]["ref"]
-                end
-
-                # @return [String]
                 def head_sha
                     @model["head"]["sha"]
                 end

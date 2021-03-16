@@ -90,7 +90,6 @@ module Autoproj
                         base_branch: "master",
                         last_committer: "contributor",
                         author: "author",
-                        head_branch: "feature",
                         head_sha: "abcdef",
                         updated_at: now
                     )

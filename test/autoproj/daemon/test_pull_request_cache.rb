@@ -76,7 +76,6 @@ module Autoproj
                         repo_url: github_url("rock-core/foobar"),
                         number: 1,
                         base_branch: "master",
-                        head_branch: "feature",
                         head_sha: "abcdef"
                     )
                     @cache.add(pr, ["pkg" => { "remote_branch" => "develop" }])
@@ -86,7 +85,6 @@ module Autoproj
                     assert cached.git_url.same?(github_url("rock-core/foobar"))
                     assert_equal 1, cached.number
                     assert_equal "master", cached.base_branch
-                    assert_equal "feature", cached.head_branch
                     assert_equal "abcdef", cached.head_sha
                     assert_equal ["pkg" => { "remote_branch" => "develop" }],
                                  cached.overrides
@@ -96,7 +94,6 @@ module Autoproj
                         repo_url: github_url("rock-core/foobar"),
                         number: 1,
                         base_branch: "master",
-                        head_branch: "feature",
                         head_sha: "abcdef"
                     )
                     @cache.add(pr, ["pkg" => { "remote_branch" => "develop" }])
@@ -105,7 +102,6 @@ module Autoproj
                         repo_url: github_url("rock-core/foobar"),
                         number: 1,
                         base_branch: "master",
-                        head_branch: "feature",
                         head_sha: "ghijkl"
                     )
 
@@ -123,7 +119,6 @@ module Autoproj
                         repo_url: github_url("rock-core/foobar"),
                         number: 1,
                         base_branch: "master",
-                        head_branch: "feature",
                         head_sha: "abcdef"
                     )
                     cached = @cache.add(pr, ["pkg" => { "remote_branch" => "develop" }])
@@ -134,7 +129,6 @@ module Autoproj
                         repo_url: github_url("rock-core/foobar"),
                         number: 1,
                         base_branch: "master",
-                        head_branch: "feature",
                         head_sha: "abcdef"
                     )
                     assert_nil @cache.cached(pr)
@@ -147,7 +141,6 @@ module Autoproj
                         repo_url: github_url("rock-core/foobar"),
                         number: 1,
                         base_branch: "master",
-                        head_branch: "feature",
                         head_sha: "abcdef"
                     )
                     @cache.add(pr, ["pkg" => { "remote_branch" => "develop" }])
@@ -164,7 +157,6 @@ module Autoproj
                         repo_url: github_url("rock-core/foobar"),
                         number: 1,
                         base_branch: "master",
-                        head_branch: "feature",
                         head_sha: "abcdef"
                     )
                     assert @cache.changed?(
@@ -176,7 +168,6 @@ module Autoproj
                         repo_url: github_url("rock-core/foobar"),
                         number: 1,
                         base_branch: "master",
-                        head_branch: "feature",
                         head_sha: "abcdef"
                     )
                     @cache.add(pr, ["pkg" => { "remote_branch" => "develop" }])
@@ -184,7 +175,6 @@ module Autoproj
                         repo_url: github_url("rock-core/foobar"),
                         number: 1,
                         base_branch: "master",
-                        head_branch: "feature",
                         head_sha: "ghijkl",
                         updated_at: Time.now + 2
                     )
@@ -197,7 +187,6 @@ module Autoproj
                         repo_url: github_url("rock-core/foobar"),
                         number: 1,
                         base_branch: "master",
-                        head_branch: "feature",
                         head_sha: "abcdef"
                     )
                     @cache.add(pr, ["pkg" => { "remote_branch" => "develop" }])

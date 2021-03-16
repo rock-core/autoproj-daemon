@@ -336,7 +336,6 @@ module Autoproj
                     pull_request = autoproj_daemon_create_pull_request(
                         repo_url: git_url("rock-drivers", "drivers-iodrivers_base"),
                         base_branch: "master",
-                        head_branch: "feature",
                         head_sha: "abcdef",
                         number: 1
                     )
@@ -538,7 +537,6 @@ module Autoproj
                         repo_url: git_url("rock-core", "drivers-iodrivers_base"),
                         number: 12,
                         base_branch: "master",
-                        head_branch: "add_feature",
                         head_sha: "abcdef"
                     )
 
@@ -578,7 +576,6 @@ module Autoproj
                         repo_url: git_url("rock-core", "drivers-iodrivers_base"),
                         number: 12,
                         base_branch: "master",
-                        head_branch: "add_feature",
                         head_sha: "abcdef"
                     )
 
@@ -618,7 +615,6 @@ module Autoproj
                         repo_url: git_url("rock-core", "drivers-iodrivers_base"),
                         number: 12,
                         base_branch: "master",
-                        head_branch: "add_feature",
                         head_sha: "abcdef"
                     )
 
@@ -636,7 +632,6 @@ module Autoproj
                         repo_url: git_url("rock-core", "drivers-iodrivers_base"),
                         number: 12,
                         base_branch: "master",
-                        head_branch: "add_feature",
                         head_sha: "efghij",
                         updated_at: Time.now - 2
                     )
@@ -666,7 +661,6 @@ module Autoproj
                         repo_url: git_url("rock-core", "drivers-iodrivers_base"),
                         number: 12,
                         base_branch: "master",
-                        head_branch: "add_feature",
                         head_sha: "abcdef"
                     )
 
@@ -684,7 +678,6 @@ module Autoproj
                         repo_url: git_url("rock-core", "drivers-iodrivers_base"),
                         number: 12,
                         base_branch: "develop",
-                        head_branch: "add_feature",
                         head_sha: "abcdef",
                         updated_at: Time.now - 2
                     )
@@ -710,7 +703,6 @@ module Autoproj
                         repo_url: git_url("rock-core", "drivers-iodrivers_base"),
                         number: 12,
                         base_branch: "develop",
-                        head_branch: "add_feature",
                         head_sha: "abcdef"
                     )
 
@@ -718,7 +710,6 @@ module Autoproj
                         repo_url: git_url("rock-core", "drivers-iodrivers_base"),
                         number: 14,
                         base_branch: "develop",
-                        head_branch: "other_feature",
                         head_sha: "ghijkl"
                     )
 
@@ -726,7 +717,6 @@ module Autoproj
                         repo_url: git_url("rock-core", "drivers-iodrivers_base"),
                         number: 16,
                         base_branch: "develop",
-                        head_branch: "awesome_feature",
                         head_sha: "abcdef"
                     )
 
@@ -748,7 +738,6 @@ module Autoproj
                         repo_url: git_url("rock-core", "drivers-iodrivers_base"),
                         number: 12,
                         base_branch: "develop",
-                        head_branch: "add_feature",
                         updated_at: Time.new(1990, 1, 1),
                         head_sha: "abcdef"
                     )
