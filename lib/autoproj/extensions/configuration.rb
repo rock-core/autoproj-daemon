@@ -17,19 +17,6 @@ module Autoproj
                 set("daemon_project", name, true)
             end
 
-            # Sets the github api key to be used for authentication.
-            # @param [String] api_key the github api key
-            def daemon_api_key=(api_key)
-                set("daemon_api_key", api_key, true)
-            end
-
-            # The github api key for authentication
-            #
-            # @return [String]
-            def daemon_api_key
-                get("daemon_api_key", nil)
-            end
-
             # Sets the pull request's polling period
             # @param [Integer] period the polling period, in seconds
             def daemon_polling_period=(period)
@@ -82,6 +69,69 @@ module Autoproj
             # @return [void]
             def daemon_max_age=(max_age)
                 set("daemon_max_age", max_age, true)
+            end
+
+            # Supported services configuration
+            # The returned value is a hash in the following format:
+            #
+            # "github.com" => {
+            #   "service" => "github",
+            #   "api_endpoint" => "https://api.github.com"
+            #   "access_token" => "abcdef"
+            # }
+            #
+            # This hash will be merged with Autoproj::Daemon::GitAPI::Client::SERVICES.
+            # The resulting hash will be used to determine which git services will be
+            # supported by the daemon instance. All services require all fields to be
+            # defined but since the daemon has internal defaults, the user must provide
+            # at least the missing keys for a given service (i.e: access_token for
+            # github.com)
+            #
+            # @return [Hash]
+            def daemon_services
+                get("daemon_services", {})
+            end
+
+            # @param [String] str
+            # @return [String]
+            def sanitize_string(str)
+                str&.to_s&.strip&.downcase
+            end
+
+            # Sets service parameters
+            #
+            # @param [String] host
+            # @param [String] access_token
+            # @param [String] api_endpoint
+            # @param [String] service
+            def daemon_set_service(
+                host,
+                access_token,
+                api_endpoint = nil,
+                service = nil
+            )
+                host = sanitize_string(host).sub(/^www./, "")
+                options = {
+                    "service" => sanitize_string(service),
+                    "api_endpoint" => sanitize_string(api_endpoint),
+                    "access_token" => access_token.to_s.strip
+                }
+
+                options.compact!
+                options.delete_if { |_, v| v.empty? }
+
+                set(
+                    "daemon_services",
+                    daemon_services.merge({ host => options })
+                )
+            end
+
+            # Removes user defined parameters for a given service
+            #
+            # @param [String] host
+            def daemon_unset_service(host)
+                host = sanitize_string(host).sub(/^www./, "")
+                set("daemon_services", daemon_services.delete_if { |k, _| k == host })
             end
         end
     end

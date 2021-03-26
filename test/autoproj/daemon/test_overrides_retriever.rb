@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 
 require "autoproj/daemon/overrides_retriever"
-require "octokit"
 require "test_helper"
 
 module Autoproj
@@ -11,61 +10,41 @@ module Autoproj
             # @return [Autoproj::Daemon::OverridesRetriever]
             attr_reader :retriever
 
+            # @return [Autoproj::Daemon::GitAPI::Client]
             attr_reader :client
 
             include Autoproj::Daemon::TestHelpers
             before do
-                autoproj_daemon_mock_github_api
+                autoproj_daemon_create_ws(type: "git",
+                                          url: "git@github.com:rock-core/buildconf.git")
 
-                @client = Github::Client.new
+                ws.config.daemon_set_service("github.com", "apikey")
+                ws.config.daemon_set_service("gitlab.com", "apikey")
+
+                autoproj_daemon_mock_git_api
+                @client = GitAPI::Client.new(@ws)
                 @retriever = OverridesRetriever.new(client)
                 @pull_requests = {}
             end
 
             def add_pull_request(owner, name, number, body, state: "open")
                 autoproj_daemon_add_pull_request(
-                    base_owner: owner,
-                    base_name: name,
+                    repo_url: "git@github.com:#{owner}/#{name}",
                     body: body,
                     number: number,
                     state: state
                 )
             end
 
-            describe "PULL_REQUEST_URL_RX" do
-                it "parses owner, name and number from PR url" do
-                    owner, name, number = OverridesRetriever::PULL_REQUEST_URL_RX.match(
-                        "https://github.com////g-arjones._1//demo.pkg_1//pull//122"
-                    )[1..-1]
-
-                    assert_equal "g-arjones._1", owner
-                    assert_equal "demo.pkg_1", name
-                    assert_equal "122", number
-                end
+            def create_pull_request(owner, name, number, body, state: "open")
+                autoproj_daemon_create_pull_request(
+                    repo_url: "git@github.com:#{owner}/#{name}",
+                    body: body,
+                    number: number,
+                    state: state
+                )
             end
 
-            describe "OWNER_NAME_AND_NUMBER_RX" do
-                it "parses owner, name and number from PR path" do
-                    owner, name, number =
-                        OverridesRetriever::OWNER_NAME_AND_NUMBER_RX.match(
-                            "g-arjones._1/demo.pkg_1#122"
-                        )[1..-1]
-
-                    assert_equal "g-arjones._1", owner
-                    assert_equal "demo.pkg_1", name
-                    assert_equal "122", number
-                end
-            end
-            describe "NUMBER_RX" do
-                it "parses the PR number from relative PR path" do
-                    number =
-                        OverridesRetriever::NUMBER_RX.match(
-                            "#122"
-                        )[1]
-
-                    assert_equal "122", number
-                end
-            end
             describe "#parse_task_list" do
                 it "parses the list of pending tasks" do
                     body = <<~EOFBODY
@@ -118,43 +97,22 @@ module Autoproj
                 end
             end
             describe "#task_to_pull_request" do
-                it "returns a pull request when given a url" do
-                    pr = add_pull_request("g-arjones._1", "demo.pkg_1", 22, "")
-                    assert_equal pr, retriever.task_to_pull_request(
-                        "https://github.com/g-arjones._1/demo.pkg_1/pull/22", pr
-                    )
-                end
-                it "returns a pull request when given a full path" do
-                    pr = add_pull_request("g-arjones._1", "demo.pkg_1", 22, "")
-                    assert_equal pr, retriever.task_to_pull_request(
-                        "g-arjones._1/demo.pkg_1#22", pr
-                    )
-                end
-                it "returns a pull request when given a relative path" do
-                    pr = add_pull_request("g-arjones._1", "demo.pkg_1", 22, "")
-                    assert_equal pr, retriever.task_to_pull_request(
-                        "#22", pr
-                    )
-                end
-                it "returns nil when the task item does not look like a PR reference" do
-                    assert_nil retriever.task_to_pull_request(
-                        "Feature", nil
-                    )
+                attr_reader :pr
+
+                before do
+                    @pr = add_pull_request("g-arjones._1", "demo.pkg_1", 22, "")
                 end
                 it "returns nil if the PR cannot be found" do
                     assert_nil retriever.task_to_pull_request(
-                        "https://github.com/g-arjones/demo_pkg/pull/22", nil
+                        "https://github.com/g-arjones/demo_pkg/pull/66", pr
                     )
                 end
-                it "returns nil if the github resource does not exist" do
-                    @client = flexmock
-                    @retriever = OverridesRetriever.new(client)
-
+                it "returns nil if the resource does not exist" do
                     client.should_receive(:pull_requests)
-                          .with(any, any).and_raise(Octokit::NotFound)
+                          .with(any).and_raise(GitAPI::NotFound)
 
                     assert_nil retriever.task_to_pull_request(
-                        "https://github.com/g-arjones/demo_pkg/pull/22", nil
+                        "https://github.com/g-arjones/demo_pkg/pull/66", pr
                     )
                 end
             end
@@ -243,6 +201,36 @@ module Autoproj
                     depends = retriever.retrieve_dependencies(pr_drivers_gps_ublox)
                     assert_equal [pr_driver_orogen_gps_ublox,
                                   pr_base_cmake], depends
+                end
+                it "allows depending on pull requests from different services" do
+                    body_drivers_orogen_gps_ublox = <<~EOFBODY
+                        Depends on:
+                        - [ ] https://gitlab.com/tidewise/drivers-gps_ublox/merge_requests/22
+                    EOFBODY
+                    pr_drivers_orogen_gps_ublox = add_pull_request(
+                        "tidewise", "drivers-orogen-gps_ublox", 11,
+                        body_drivers_orogen_gps_ublox
+                    )
+
+                    body_drivers_gps_ublox = <<~EOFBODY
+                        Depends on:
+                        - [ ] https://github.com/tidewise/base-cmake/pull/44
+                    EOFBODY
+
+                    pr_drivers_gps_ublox = autoproj_daemon_add_pull_request(
+                        repo_url: "git@gitlab.com:tidewise/drivers-gps_ublox",
+                        number: 22,
+                        state: "open",
+                        body: body_drivers_gps_ublox
+                    )
+
+                    pr_base_cmake = add_pull_request(
+                        "tidewise", "base-cmake", 44,
+                        nil
+                    )
+
+                    depends = retriever.retrieve_dependencies(pr_drivers_orogen_gps_ublox)
+                    assert_equal [pr_drivers_gps_ublox, pr_base_cmake], depends
                 end
             end
         end

@@ -10,17 +10,6 @@ module Autoproj
             @config = Configuration.new
         end
 
-        describe "#daemon_api_key" do
-            it "sets the github api key" do
-                @config.daemon_api_key = "abcdefg"
-                assert_equal "abcdefg", @config.daemon_api_key
-            end
-
-            it "returns nil if github api key not set" do
-                refute @config.daemon_api_key
-            end
-        end
-
         describe "#daemon_polling_period" do
             it "sets the polling period" do
                 @config.daemon_polling_period = 80
@@ -79,6 +68,44 @@ module Autoproj
 
             it "returns 120 if events and prs max age not set" do
                 assert_equal 120, @config.daemon_max_age
+            end
+        end
+
+        describe "#daemon_services" do
+            it "returns an empty hash when unset" do
+                assert_equal({}, @config.daemon_services)
+            end
+
+            it "sets daemon git service parameters" do
+                @config.daemon_set_service(
+                    "gitlab.com", "abcdef", "https://gitlab.com/api/v4", "gitlab"
+                )
+                @config.daemon_set_service("WWW.GITHUB.COM", "AbCdEf", " ")
+                expected_hash = {
+                    "gitlab.com" => {
+                        "service" => "gitlab",
+                        "api_endpoint" => "https://gitlab.com/api/v4",
+                        "access_token" => "abcdef"
+                    },
+                    "github.com" => {
+                        "access_token" => "AbCdEf"
+                    }
+                }
+                assert_equal expected_hash, @config.daemon_services
+            end
+
+            it "unsets daemon git service parameters" do
+                @config.daemon_set_service(
+                    "gitlab.com", "abcdef", "https://gitlab.com/api/v4", "gitlab"
+                )
+                @config.daemon_set_service("github.com", "abcdef", " ")
+                @config.daemon_unset_service("gitlab.com")
+                expected_hash = {
+                    "github.com" => {
+                        "access_token" => "abcdef"
+                    }
+                }
+                assert_equal expected_hash, @config.daemon_services
             end
         end
     end

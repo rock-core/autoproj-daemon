@@ -11,12 +11,6 @@ module Autoproj
             # @return [String]
             attr_reader :package
 
-            # @return [String]
-            attr_reader :name
-
-            # @return [String]
-            attr_reader :owner
-
             # @return [Hash]
             attr_reader :vcs
 
@@ -26,10 +20,8 @@ module Autoproj
             # @return [Autoproj::Workspace]
             attr_reader :ws
 
-            def initialize(package, owner, name, vcs, options = {})
+            def initialize(package, vcs, options = {})
                 @package = package
-                @name = name
-                @owner = owner
                 @vcs = vcs
                 @package_set = options[:package_set]
                 @buildconf = options[:buildconf]
@@ -48,15 +40,23 @@ module Autoproj
             end
 
             # @return [String]
+            def repo_url
+                vcs[:url]
+            end
+
+            # @return [String]
             def branch
                 vcs[:remote_branch] || vcs[:branch] || "master"
             end
 
             # @return [String]
             def head_sha
-                pkg = autobuild
-                pkg.importdir ||= local_dir
-                pkg.importer.current_remote_commit(pkg, only_local: true)
+                out, err, status = Open3.capture3(
+                    "git", "-C", local_dir, "rev-parse", "HEAD"
+                )
+                raise err unless status.success?
+
+                out.strip
             end
 
             # @return [Autobuild::Package]

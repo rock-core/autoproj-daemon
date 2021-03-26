@@ -72,8 +72,9 @@ module Autoproj
                 it "adds buildbot force build paramaters" do
                     now = Time.now
                     flexmock(bb).should_receive(:post_change).with(
-                        author: "contributor",
-                        branch: "autoproj/wetpaint/tidewise/drivers-gps_ublox/pulls/22",
+                        author: "author",
+                        branch: "autoproj/wetpaint/github.com/"\
+                                "tidewise/drivers-gps_ublox/pulls/22",
                         category: "pull_request",
                         codebase: "",
                         committer: "contributor",
@@ -84,13 +85,11 @@ module Autoproj
                     ).once
 
                     pr = autoproj_daemon_add_pull_request(
-                        base_owner: "tidewise",
-                        base_name: "drivers-gps_ublox",
+                        repo_url: "git@github.com:tidewise/drivers-gps_ublox.git",
                         number: 22,
                         base_branch: "master",
-                        head_owner: "contributor",
-                        head_name: "drivers-gps_ublox_fork",
-                        head_branch: "feature",
+                        last_committer: "contributor",
+                        author: "author",
                         head_sha: "abcdef",
                         updated_at: now
                     )
@@ -103,7 +102,7 @@ module Autoproj
                     now = Time.now
                     flexmock(bb).should_receive(:post_change).with(
                         author: "g-arjones",
-                        branch: "master",
+                        branch: "devel",
                         category: "push",
                         codebase: "",
                         committer: "g-arjones",
@@ -113,16 +112,15 @@ module Autoproj
                         when_timestamp: now.tv_sec
                     ).once
 
-                    event = autoproj_daemon_add_push_event(
-                        author: "g-arjones",
-                        owner: "tidewise",
-                        name: "drivers-gps_ublox",
-                        branch: "feature",
-                        head_sha: "abcdef",
-                        created_at: now
+                    branch = autoproj_daemon_add_branch(
+                        repo_url: "git@github.com:tidewise/drivers-gps_ublox.git",
+                        branch_name: "devel",
+                        sha: "abcdef",
+                        commit_author: "g-arjones",
+                        commit_date: now
                     )
 
-                    bb.post_mainline_changes(flexmock, [event])
+                    bb.post_mainline_changes(flexmock, branch)
                 end
             end
         end

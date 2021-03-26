@@ -5,22 +5,26 @@ require "time"
 
 module Autoproj
     module Daemon
-        module Github
+        module GitAPI
             # Base class for classes that provide a friendly interface on top
             # of JSON objects
             class JSONFacade
+                # @return [GitAPI::URL]
+                attr_reader :git_url
+
                 # @return [Hash]
                 attr_reader :model
 
-                def self.from_ruby_hash(hash)
-                    from_json_string(hash.to_json)
+                def self.from_ruby_hash(git_url, model)
+                    from_json_string(git_url, model.to_json)
                 end
 
-                def self.from_json_string(string)
-                    new(JSON.parse(string))
+                def self.from_json_string(git_url, model)
+                    new(git_url, JSON.parse(model))
                 end
 
-                def initialize(model)
+                def initialize(git_url, model)
+                    @git_url = git_url
                     @model = model
                 end
 
@@ -39,6 +43,7 @@ module Autoproj
                 def initialize_copy(_)
                     super
                     @model = @model.dup
+                    @git_url = @git_url.dup
                 end
             end
         end

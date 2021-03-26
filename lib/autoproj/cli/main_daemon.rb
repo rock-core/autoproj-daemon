@@ -3,6 +3,7 @@
 require "autoproj"
 require "thor"
 require "autoproj/cli/daemon"
+require "autoproj/daemon/workspace_updater"
 require "faraday-http-cache"
 
 module Autoproj
@@ -26,16 +27,42 @@ module Autoproj
                 end
                 Octokit.middleware = stack
 
-                daemon = Daemon.new(Autoproj.workspace)
+                ws = Autoproj.workspace
+                updater = Autoproj::Daemon::WorkspaceUpdater.new(ws)
+
+                daemon = Daemon.new(ws, updater)
                 daemon.clear_and_dump_cache if options[:clear_cache]
-                daemon.update if options[:update]
+                updater.update if options[:update]
                 daemon.start
+            rescue Autoproj::ConfigError => e
+                Autoproj.error e.message
             end
 
             desc "configure", "Configures autoproj daemon plugin"
             def configure(*_args)
-                daemon = Daemon.new(Autoproj.workspace)
+                ws = Autoproj.workspace
+                updater = Autoproj::Daemon::WorkspaceUpdater.new(ws)
+
+                daemon = Daemon.new(ws, updater)
                 daemon.configure
+            end
+
+            desc "set HOST API_KEY [API_ENDPOINT] [SERVICE]",
+                 "Set git services parameters"
+            def set(host, access_token, api_endpoint = nil, service = nil)
+                ws = Autoproj.workspace
+                ws.load_config
+                ws.config.daemon_set_service(host, access_token, api_endpoint, service)
+                ws.config.save
+            end
+
+            desc "unset HOST",
+                 "Unset git services parameters"
+            def unset(host)
+                ws = Autoproj.workspace
+                ws.load_config
+                ws.config.daemon_unset_service(host)
+                ws.config.save
             end
         end
     end

@@ -2,7 +2,8 @@
 
 require "autoproj"
 require "autoproj/ops/atomic_write"
-require "autoproj/daemon/github/pull_request"
+require "autoproj/daemon/git_api/pull_request"
+require "autoproj/daemon/git_api/url"
 require "yaml"
 
 module Autoproj
@@ -22,35 +23,31 @@ module Autoproj
             end
 
             CachedPullRequest =
-                Struct.new :base_owner, :base_name,
-                           :number, :base_branch,
-                           :head_owner, :head_name, :head_branch,
+                Struct.new :repo_url, :number, :base_branch,
                            :head_sha, :updated_at, :overrides do
                     def caches_pull_request?(pull_request)
-                        base_owner == pull_request.base_owner &&
-                            base_name == pull_request.base_name &&
-                            number == pull_request.number
+                        git_url == pull_request.git_url && number == pull_request.number
+                    end
+
+                    def git_url
+                        GitAPI::URL.new(repo_url)
                     end
                 end
 
-            # @param [Github::PullRequest] pull_request
+            # @param [GitAPI::PullRequest] pull_request
             # @return [void]
             def delete(pull_request)
                 pull_requests.delete_if { |pr| pr.caches_pull_request?(pull_request) }
             end
 
-            # @param [Github::PullRequest] pull_request
+            # @param [GitAPI::PullRequest] pull_request
             # @return [CachedPullRequest]
             def add(pull_request, overrides)
                 delete(pull_request)
                 cached = CachedPullRequest.new(
-                    pull_request.base_owner,
-                    pull_request.base_name,
+                    pull_request.git_url.raw,
                     pull_request.number,
                     pull_request.base_branch,
-                    pull_request.head_owner,
-                    pull_request.head_name,
-                    pull_request.head_branch,
                     pull_request.head_sha,
                     pull_request.updated_at,
                     overrides
@@ -64,7 +61,7 @@ module Autoproj
                 @pull_requests = []
             end
 
-            # @param [Github::PullRequest] pull_request
+            # @param [GitAPI::PullRequest] pull_request
             # @return [CachedPullRequest, nil]
             def cached(pull_request)
                 pull_requests.find { |pr| pr.caches_pull_request?(pull_request) }
@@ -74,7 +71,7 @@ module Autoproj
                 cached(pull_request)
             end
 
-            # @param [Github::PullRequest] pull_request
+            # @param [GitAPI::PullRequest] pull_request
             # @return [Boolean]
             def changed?(pull_request, overrides)
                 found = cached(pull_request)
