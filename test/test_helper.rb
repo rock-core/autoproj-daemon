@@ -18,8 +18,8 @@ module Autoproj
             attr_reader :pull_requests, :branches
 
             def initialize
-                @pull_requests = Hash.new { |h, k| h[k] = [] }
-                @branches = Hash.new { |h, k| h[k] = [] }
+                @pull_requests = Hash.new { |h, k| h[k] = {} }
+                @branches = Hash.new { |h, k| h[k] = {} }
                 @users = Hash.new { |h, k| h[k] = {} }
             end
         end
@@ -30,17 +30,17 @@ module Autoproj
 
             def pull_requests(repo, _options = {})
                 repo = GitAPI::URL.new(repo)
-                @storage.pull_requests[repo].dup
+                @storage.pull_requests[repo].values
             end
 
             def branches(repo, _options = {})
                 repo = GitAPI::URL.new(repo)
-                @storage.branches[repo].dup
+                @storage.branches[repo].values
             end
 
             def branch(repo, name, _options = {})
                 repo = GitAPI::URL.new(repo)
-                @storage.branches[repo].find { |branch| branch.branch_name == name }
+                @storage.branches[repo][name]
             end
         end
 
@@ -219,7 +219,7 @@ module Autoproj
             def autoproj_daemon_add_pull_request(**options)
                 git_url = Autoproj::Daemon::GitAPI::URL.new(options[:repo_url])
                 pr = autoproj_daemon_create_pull_request(**options)
-                @storage.pull_requests[git_url] << pr
+                @storage.pull_requests[git_url][pr.number] = pr
                 pr
             end
 
@@ -244,7 +244,7 @@ module Autoproj
             def autoproj_daemon_add_branch(**options)
                 git_url = Autoproj::Daemon::GitAPI::URL.new(options[:repo_url])
                 branch = autoproj_daemon_create_branch(**options)
-                @storage.branches[git_url] << branch
+                @storage.branches[git_url][branch.branch_name] = branch
                 branch
             end
         end
