@@ -59,6 +59,8 @@ module Autoproj
                             updated_at: mrequest.updated_at,
                             body: mrequest.description,
                             html_url: mrequest.web_url,
+                            draft: mrequest.work_in_progress,
+                            mergeable: (mrequest.merge_status == "can_be_merged"),
                             user: {
                                 login: mrequest.author.username
                             },
@@ -230,6 +232,18 @@ module Autoproj
                         return unless path && number
 
                         ["https://#{host}/#{path}", number]
+                    end
+
+                    # @param [GitAPI::PullRequest] pull_request
+                    # @return [String]
+                    def test_branch_name(pull_request)
+                        head = if pull_request.draft? || !pull_request.mergeable?
+                                   "head"
+                               else
+                                   "merge"
+                               end
+
+                        "refs/merge-requests/#{pull_request.number}/#{head}"
                     end
                 end
             end

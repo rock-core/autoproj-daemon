@@ -15,6 +15,7 @@ module Autoproj
                     type: "git",
                     url: "git@github.com:rock-core/buildconf"
                 )
+                ws.config.daemon_set_service("github.com", "apikey")
 
                 @packages = []
                 @cache = PullRequestCache.new(@ws)
@@ -54,6 +55,21 @@ module Autoproj
                     .with(pkg, branch)
                     .once
                     .ordered
+            end
+
+            def expect_pull_request_build(pull_request)
+                flexmock(@poller.bb)
+                    .should_receive(:post_pull_request_changes)
+                    .with(pull_request)
+                    .once
+                    .ordered
+            end
+
+            def expect_no_pull_request_build(pull_request)
+                flexmock(@poller.bb)
+                    .should_receive(:post_pull_request_changes)
+                    .with(pull_request)
+                    .never
             end
 
             def expect_restart_and_update
@@ -561,7 +577,8 @@ module Autoproj
                     @poller.update_pull_requests
 
                     flexmock(@poller).should_receive(:commit_and_push_overrides).never
-                    flexmock(@poller.bb).should_receive(:post_change).never
+
+                    expect_no_pull_request_build(any)
                     @poller.trigger_build_if_branch_changed([branch])
                 end
                 it "triggers if overrides changed" do
@@ -598,9 +615,8 @@ module Autoproj
 
                     flexmock(@poller).should_receive(:commit_and_push_overrides)
                                      .with(branch_name, expected_overrides).once
-                    flexmock(@poller.bb).should_receive(:post_pull_request_changes)
-                                        .with(pr).once
 
+                    expect_pull_request_build(pr)
                     @poller.trigger_build_if_branch_changed([branch])
                 end
                 it "triggers if PR head sha changed" do
@@ -628,7 +644,7 @@ module Autoproj
                         }
                     }
 
-                    pr_cached = autoproj_daemon_add_pull_request(
+                    pr_cached = autoproj_daemon_create_pull_request(
                         repo_url: git_url("rock-core", "drivers-iodrivers_base"),
                         number: 12,
                         base_branch: "master",
@@ -642,8 +658,7 @@ module Autoproj
                     branch_name = "autoproj/myproject/github.com/"\
                                   "rock-core/drivers-iodrivers_base/pulls/12"
 
-                    flexmock(@poller.bb).should_receive(:post_pull_request_changes)
-                                        .with(pr).once
+                    expect_pull_request_build(pr)
                     flexmock(@poller).should_receive(:commit_and_push_overrides)
                                      .with(branch_name, overrides).once
 
@@ -674,7 +689,7 @@ module Autoproj
                         }
                     }
 
-                    pr_cached = autoproj_daemon_add_pull_request(
+                    pr_cached = autoproj_daemon_create_pull_request(
                         repo_url: git_url("rock-core", "drivers-iodrivers_base"),
                         number: 12,
                         base_branch: "develop",
@@ -688,8 +703,55 @@ module Autoproj
 
                     branch_name = "autoproj/myproject/github.com/"\
                                   "rock-core/drivers-iodrivers_base/pulls/12"
-                    flexmock(@poller.bb).should_receive(:post_pull_request_changes)
-                                        .with(pr).once
+
+                    expect_pull_request_build(pr)
+                    flexmock(@poller).should_receive(:commit_and_push_overrides)
+                                     .with(branch_name, overrides).once
+
+                    @poller.trigger_build_if_branch_changed([branch])
+                end
+                it "triggers if draft status changed" do
+                    branch = autoproj_daemon_add_branch(
+                        repo_url: git_url("rock-core", "buildconf"),
+                        branch_name: "autoproj/myproject/github.com/"\
+                                     "rock-core/drivers-iodrivers_base/pulls/12",
+                        sha: "abcdef"
+                    )
+
+                    pr = autoproj_daemon_add_pull_request(
+                        repo_url: git_url("rock-core", "drivers-iodrivers_base"),
+                        number: 12,
+                        base_branch: "master",
+                        head_sha: "abcdef"
+                    )
+
+                    add_package("drivers/iodrivers_base", "rock-core",
+                                "drivers-iodrivers_base", branch: "master")
+
+                    overrides = []
+                    overrides << {
+                        "drivers/iodrivers_base" => {
+                            "remote_branch" => "refs/pull/12/merge"
+                        }
+                    }
+
+                    pr_cached = autoproj_daemon_create_pull_request(
+                        repo_url: git_url("rock-core", "drivers-iodrivers_base"),
+                        number: 12,
+                        base_branch: "master",
+                        head_sha: "abcdef",
+                        draft: true,
+                        updated_at: Time.now - 2
+                    )
+
+                    @cache.add(pr_cached, overrides)
+                    @poller.update_branches
+                    @poller.update_pull_requests
+
+                    branch_name = "autoproj/myproject/github.com/"\
+                                  "rock-core/drivers-iodrivers_base/pulls/12"
+
+                    expect_pull_request_build(pr)
                     flexmock(@poller).should_receive(:commit_and_push_overrides)
                                      .with(branch_name, overrides).once
 

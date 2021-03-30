@@ -69,6 +69,10 @@ module Autoproj
                 # @param [GitAPI::PullRequest] pull_request
                 # @return [String]
                 def extract_info_from_pull_request_ref(ref, pull_request); end
+
+                # @param [GitAPI::PullRequest] pull_request
+                # @return [String]
+                def test_branch_name(pull_request); end
             end
         end
     end

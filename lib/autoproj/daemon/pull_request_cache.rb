@@ -24,7 +24,7 @@ module Autoproj
 
             CachedPullRequest =
                 Struct.new :repo_url, :number, :base_branch,
-                           :head_sha, :updated_at, :overrides do
+                           :head_sha, :draft?, :updated_at, :overrides do
                     def caches_pull_request?(pull_request)
                         git_url == pull_request.git_url && number == pull_request.number
                     end
@@ -49,6 +49,7 @@ module Autoproj
                     pull_request.number,
                     pull_request.base_branch,
                     pull_request.head_sha,
+                    pull_request.draft?,
                     pull_request.updated_at,
                     overrides
                 )
@@ -79,7 +80,8 @@ module Autoproj
 
                 found.overrides != overrides ||
                     ((found.head_sha != pull_request.head_sha ||
-                    found.base_branch != pull_request.base_branch) &&
+                    found.base_branch != pull_request.base_branch ||
+                    found.draft? != pull_request.draft?) &&
                     pull_request.updated_at > found.updated_at)
             end
 

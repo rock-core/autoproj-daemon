@@ -61,8 +61,19 @@ module Autoproj
                     @model["user"]["login"]
                 end
 
+                # @return [String]
                 def last_committer
                     @model["head"]["user"]["login"]
+                end
+
+                # @return [Boolean]
+                def draft?
+                    @model["draft"]
+                end
+
+                # @return [Boolean]
+                def mergeable?
+                    @model["mergeable"]
                 end
             end
         end

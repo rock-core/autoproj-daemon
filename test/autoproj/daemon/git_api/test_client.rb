@@ -31,6 +31,10 @@ module Autoproj
                     def extract_info_from_pull_request_ref(_, _)
                         ["https://dummy.com/foo/bar", 22]
                     end
+
+                    def test_branch_name(pull_request)
+                        "dummy/#{pull_request.number}"
+                    end
                 end
             end
 
@@ -173,6 +177,18 @@ module Autoproj
                         @client = Client.new(ws)
                         service = client.service("git@dummy.com:foo/bar")
                         assert_equal "https://dummy.com/api/v4", service.api_endpoint
+                    end
+
+                    it "uses test branch name from backend" do
+                        ws.config.daemon_set_service(
+                            "dummy.com", "apikey", nil, "dummy"
+                        )
+                        @client = Client.new(ws)
+                        pr = autoproj_daemon_create_pull_request(
+                            number: 1,
+                            repo_url: "git@dummy.com:foo/bar.git"
+                        )
+                        assert_equal "dummy/1", client.test_branch_name(pr)
                     end
 
                     it "does not allow defining services with unknown backends" do

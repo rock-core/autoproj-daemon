@@ -134,6 +134,18 @@ module Autoproj
                     rescue Octokit::TooManyRequests => e
                         raise GitAPI::TooManyRequests, e.message
                     end
+
+                    # @param [GitAPI::PullRequest] pull_request
+                    # @return [String]
+                    def test_branch_name(pull_request)
+                        head = if pull_request.draft? || !pull_request.mergeable?
+                                   "head"
+                               else
+                                   "merge"
+                               end
+
+                        "refs/pull/#{pull_request.number}/#{head}"
+                    end
                 end
             end
         end
