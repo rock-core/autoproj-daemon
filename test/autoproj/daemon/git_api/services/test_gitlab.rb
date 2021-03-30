@@ -169,7 +169,8 @@ module Autoproj
                         )
                         @pr_model = Gitlab::ObjectifiedHash.new(@pr_model)
                         pagination = flexmock
-                        pagination.should_receive(:auto_paginate).and_return([@pr_model])
+                        pagination.should_receive(:auto_paginate)
+                                  .and_return { [@pr_model] }
                         gitlabmock.should_receive(:merge_requests)
                                   .with("rock-core/buildconf", any)
                                   .and_return(pagination)
@@ -190,7 +191,7 @@ module Autoproj
                         @pr_model["state"] = "closed"
                         @pr_model = Gitlab::ObjectifiedHash.new(pr_model)
 
-                        pull_request = PullRequest.new(URL.new(url), pr_model)
+                        pull_request = client.pull_requests(url).first
                         refute pull_request.open?
                     end
 
@@ -242,6 +243,17 @@ module Autoproj
                     it "returns the last commit author" do
                         pull_request = client.pull_requests(url).first
                         assert_equal "", pull_request.last_committer
+                    end
+
+                    it "returns the draft status" do
+                        pull_request = client.pull_requests(url).first
+                        refute pull_request.draft?
+
+                        @pr_model = pr_model.to_hash
+                        @pr_model["work_in_progress"] = true
+                        @pr_model = Gitlab::ObjectifiedHash.new(pr_model)
+                        pull_request = client.pull_requests(url).first
+                        assert pull_request.draft?
                     end
                 end
             end

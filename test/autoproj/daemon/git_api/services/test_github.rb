@@ -276,6 +276,15 @@ module Autoproj
                             pull_request = client.pull_requests(url).first
                             assert_equal "vedipen", pull_request.last_committer
                         end
+
+                        it "returns the draft status" do
+                            pull_request = client.pull_requests(url).first
+                            refute pull_request.draft?
+
+                            pr_model["draft"] = true
+                            pull_request = PullRequest.new(URL.new(url), pr_model)
+                            assert pull_request.draft?
+                        end
                     end
                 end
             end

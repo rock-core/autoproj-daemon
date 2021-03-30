@@ -331,5 +331,6 @@
         "href": "https://api.github.com/repos/microsoft/vscode/statuses/6a0c40a0cc4edd4b5c9e520be86ac0c5c4402dd9"
       }
     },
-    "author_association": "MEMBER"
+    "author_association": "MEMBER",
+    "draft": false
   }

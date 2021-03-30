@@ -59,6 +59,7 @@ module Autoproj
                             updated_at: mrequest.updated_at,
                             body: mrequest.description,
                             html_url: mrequest.web_url,
+                            draft: mrequest.work_in_progress,
                             user: {
                                 login: mrequest.author.username
                             },
