@@ -248,12 +248,16 @@ module Autoproj
                     it "returns the draft status" do
                         pull_request = client.pull_requests(url).first
                         refute pull_request.draft?
+                        assert_equal "refs/merge-requests/1/merge",
+                                     client.test_branch_name(pull_request)
 
                         @pr_model = pr_model.to_hash
                         @pr_model["work_in_progress"] = true
                         @pr_model = Gitlab::ObjectifiedHash.new(pr_model)
                         pull_request = client.pull_requests(url).first
                         assert pull_request.draft?
+                        assert_equal "refs/merge-requests/1/head",
+                                     client.test_branch_name(pull_request)
                     end
                 end
             end

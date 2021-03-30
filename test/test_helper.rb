@@ -196,6 +196,7 @@ module Autoproj
                     updated_at: options[:updated_at] || Time.now,
                     body: options[:body],
                     html_url: "https://#{git_url.full_path}/pull/#{options[:number]}",
+                    draft: options[:draft],
                     user: {
                         login: options[:author]
                     },

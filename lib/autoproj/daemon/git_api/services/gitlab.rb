@@ -232,6 +232,18 @@ module Autoproj
 
                         ["https://#{host}/#{path}", number]
                     end
+
+                    # @param [GitAPI::PullRequest] pull_request
+                    # @return [String]
+                    def test_branch_name(pull_request)
+                        head = if pull_request.draft?
+                                   "head"
+                               else
+                                   "merge"
+                               end
+
+                        "refs/merge-requests/#{pull_request.number}/#{head}"
+                    end
                 end
             end
         end

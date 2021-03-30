@@ -15,6 +15,7 @@ module Autoproj
                     type: "git",
                     url: "git@github.com:rock-core/buildconf"
                 )
+                ws.config.daemon_set_service("github.com", "apikey")
 
                 @packages = []
                 @cache = PullRequestCache.new(@ws)

@@ -280,10 +280,14 @@ module Autoproj
                         it "returns the draft status" do
                             pull_request = client.pull_requests(url).first
                             refute pull_request.draft?
+                            assert_equal "refs/pull/81609/merge",
+                                         client.test_branch_name(pull_request)
 
                             pr_model["draft"] = true
                             pull_request = PullRequest.new(URL.new(url), pr_model)
                             assert pull_request.draft?
+                            assert_equal "refs/pull/81609/head",
+                                         client.test_branch_name(pull_request)
                         end
                     end
                 end

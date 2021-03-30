@@ -344,7 +344,7 @@ module Autoproj
                               end
                         {
                             key => {
-                                "remote_branch" => "refs/pull/#{pr.number}/merge"
+                                "remote_branch" => client.test_branch_name(pr)
                             }
                         }
                     end
