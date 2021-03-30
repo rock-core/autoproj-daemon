@@ -259,6 +259,21 @@ module Autoproj
                         assert_equal "refs/merge-requests/1/head",
                                      client.test_branch_name(pull_request)
                     end
+
+                    it "returns the mergeable status" do
+                        pull_request = client.pull_requests(url).first
+                        assert pull_request.mergeable?
+                        assert_equal "refs/merge-requests/1/merge",
+                                     client.test_branch_name(pull_request)
+
+                        @pr_model = pr_model.to_hash
+                        @pr_model["merge_status"] = "cannot_be_merged"
+                        @pr_model = Gitlab::ObjectifiedHash.new(pr_model)
+                        pull_request = client.pull_requests(url).first
+                        refute pull_request.mergeable?
+                        assert_equal "refs/merge-requests/1/head",
+                                     client.test_branch_name(pull_request)
+                    end
                 end
             end
         end

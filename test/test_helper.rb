@@ -188,6 +188,7 @@ module Autoproj
 
             def autoproj_daemon_create_pull_request(**options)
                 git_url = Autoproj::Daemon::GitAPI::URL.new(options[:repo_url])
+                options[:mergeable] = true if options[:mergeable].nil?
                 Autoproj::Daemon::GitAPI::PullRequest.from_ruby_hash(
                     git_url,
                     state: options[:state],
@@ -197,6 +198,7 @@ module Autoproj
                     body: options[:body],
                     html_url: "https://#{git_url.full_path}/pull/#{options[:number]}",
                     draft: options[:draft],
+                    mergeable: options[:mergeable],
                     user: {
                         login: options[:author]
                     },

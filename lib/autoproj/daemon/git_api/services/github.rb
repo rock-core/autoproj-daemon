@@ -138,7 +138,7 @@ module Autoproj
                     # @param [GitAPI::PullRequest] pull_request
                     # @return [String]
                     def test_branch_name(pull_request)
-                        head = if pull_request.draft?
+                        head = if pull_request.draft? || !pull_request.mergeable?
                                    "head"
                                else
                                    "merge"

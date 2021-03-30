@@ -332,5 +332,6 @@
       }
     },
     "author_association": "MEMBER",
-    "draft": false
+    "draft": false,
+    "mergeable": true
   }

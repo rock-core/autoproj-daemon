@@ -70,6 +70,11 @@ module Autoproj
                 def draft?
                     @model["draft"]
                 end
+
+                # @return [Boolean]
+                def mergeable?
+                    @model["mergeable"]
+                end
             end
         end
     end
