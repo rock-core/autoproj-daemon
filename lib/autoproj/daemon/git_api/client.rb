@@ -172,7 +172,7 @@ module Autoproj
                     service = service(branch.git_url.raw)
 
                     with_retry(service) do
-                        service.delete_branch(branch.git_url, branch.branch_name)
+                        service.delete_branch(branch)
                     end
                 end
 
@@ -184,7 +184,7 @@ module Autoproj
                     git_url = URL.new(url)
 
                     with_retry(service) do
-                        service.delete_branch(git_url, branch_name)
+                        service.delete_branch_by_name(git_url, branch_name)
                     end
                 end
 
