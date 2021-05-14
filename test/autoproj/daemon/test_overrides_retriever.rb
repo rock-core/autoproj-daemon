@@ -91,7 +91,7 @@ module Autoproj
                     tasks = []
                     tasks << "one"
                     tasks << "two"
-                    tasks << "Feature"
+                    tasks << "Feature 2:"
                     tasks << "four"
                     assert_equal tasks, retriever.parse_task_list(body)
                 end
@@ -231,6 +231,26 @@ module Autoproj
 
                     depends = retriever.retrieve_dependencies(pr_drivers_orogen_gps_ublox)
                     assert_equal [pr_drivers_gps_ublox, pr_base_cmake], depends
+                end
+                it "allows an exclamation mark in a PR ref" do
+                    body_drivers_gps_ublox = <<~EOFBODY
+                        Depends on:
+                        - [ ] tidewise/drivers-orogen-gps_ublox!22
+                    EOFBODY
+                    pr_drivers_gps_ublox = autoproj_daemon_add_pull_request(
+                        repo_url: "git@gitlab.com:tidewise/drivers-gps_ublox",
+                        number: 11,
+                        state: "open",
+                        body: body_drivers_gps_ublox
+                    )
+
+                    pr_drivers_orogen_gps_ublox = autoproj_daemon_add_pull_request(
+                        repo_url: "git@gitlab.com:tidewise/drivers-orogen-gps_ublox",
+                        number: 22,
+                        state: "open"
+                    )
+                    depends = retriever.retrieve_dependencies(pr_drivers_gps_ublox)
+                    assert_equal [pr_drivers_orogen_gps_ublox], depends
                 end
             end
         end
