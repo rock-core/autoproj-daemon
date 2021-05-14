@@ -10,7 +10,7 @@ module Autoproj
         # A class that retrievers overrides from a pull request
         class OverridesRetriever
             DEPENDS_ON_RX = /(?:.*depends?(?:\s+on)?\s*:?\s*\n)(.*)/mi.freeze
-            OPEN_TASK_RX = %r{(?:-\s*\[\s*\]\s*)([\w\-:/\#!.]+)}.freeze
+            OPEN_TASK_RX = /(?:-\s*\[\s*\]\s*)(.*)/.freeze
 
             # @return [GitAPI::Client]
             attr_reader :client

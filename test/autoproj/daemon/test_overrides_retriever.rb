@@ -91,7 +91,7 @@ module Autoproj
                     tasks = []
                     tasks << "one"
                     tasks << "two"
-                    tasks << "Feature"
+                    tasks << "Feature 2:"
                     tasks << "four"
                     assert_equal tasks, retriever.parse_task_list(body)
                 end
