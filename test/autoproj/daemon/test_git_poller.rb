@@ -223,6 +223,48 @@ module Autoproj
                     assert_equal branches, @poller.update_package_branches
                     assert_equal branches, @poller.package_branches
                 end
+
+                it "ignores packages for which querying the mainline branch failed" do
+                    branches = []
+                    branches << autoproj_daemon_add_branch(
+                        repo_url: git_url("rock-drivers", "drivers-iodrivers_base"),
+                        branch_name: "devel",
+                        sha: "ghijkl"
+                    )
+
+                    add_package(
+                        "drivers/iodrivers_base",
+                        "rock-drivers",
+                        "drivers-iodrivers_base",
+                        branch: "devel"
+                    )
+
+                    add_package(
+                        "drivers/iodrivers_base2",
+                        "rock-drivers",
+                        "drivers-iodrivers_base",
+                        branch: "devel"
+                    )
+
+                    add_package(
+                        "drivers/iodrivers_base3",
+                        "rock-drivers",
+                        "drivers-iodrivers_base",
+                        branch: "master"
+                    )
+
+                    flexmock(@poller.client)
+                        .should_receive(:branch)
+                        .with(git_url("rock-drivers", "drivers-iodrivers_base"), "devel")
+                        .pass_thru
+                    flexmock(@poller.client)
+                        .should_receive(:branch)
+                        .with(git_url("rock-drivers", "drivers-iodrivers_base"), "master")
+                        .and_raise(StandardError)
+
+                    assert_equal branches, @poller.update_package_branches
+                    assert_equal branches, @poller.package_branches
+                end
             end
 
             describe "#packages_by_branch" do

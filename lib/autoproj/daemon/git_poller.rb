@@ -93,12 +93,18 @@ module Autoproj
                 Autoproj.message "Fetching branches from "\
                     "#{filtered_repos.size} repositories..."
 
-                @package_branches = filtered_repos.flat_map do |pkg|
+                package_branches = filtered_repos.flat_map do |pkg|
                     client.branch(pkg.repo_url, pkg.branch)
+                rescue StandardError => e
+                    Autoproj.warn "could not fetch information about #{pkg.package} "\
+                                  "from #{pkg.repo_url}, branch #{pkg.branch}"
+                    Autoproj.warn "ignoring this package until this gets resolved"
+                    Autoproj.warn e.message
+                    nil
                 end
 
                 Autoproj.message "Tracking #{package_branches.size} branches"
-                package_branches
+                @package_branches = package_branches.compact
             end
 
             # @param [GitAPI::Branch] branch
