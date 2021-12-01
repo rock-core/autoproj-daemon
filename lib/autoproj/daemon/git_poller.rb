@@ -17,6 +17,10 @@ module Autoproj
         # representing open Pull Requests to the actual Pull Requests
         # on each watched repository
         class GitPoller
+            # Delay in {#poll} before we restart the daemon when something went
+            # terribly wrong
+            EMERGENCY_RESTART_DELAY = 10
+
             # @return [Autoproj::Daemon::Buildbot]
             attr_reader :bb
 
@@ -412,6 +416,17 @@ module Autoproj
 
                 update_package_branches
                 handle_mainline_changes
+            rescue StandardError => e
+                Autoproj.warn "Exception raised by code in GitPoller#poll"
+                Autoproj.warn "Waiting #{EMERGENCY_RESTART_DELAY}s and "\
+                              "restarting the daemon"
+                Autoproj.warn e.message
+                e.backtrace.each do |line|
+                    Autoproj.warn "  #{line}"
+                end
+
+                sleep EMERGENCY_RESTART_DELAY
+                updater.restart_and_update
             end
         end
     end

@@ -873,6 +873,24 @@ module Autoproj
                     refute_nil @poller.cache.cached(pr)
                 end
             end
+
+            describe "#poll" do
+                it "restarts the daemon if anything raises" do
+                    flexmock(@poller.updater)
+                        .should_receive(:update_failed?).and_raise(RuntimeError)
+                    flexmock(@poller.updater)
+                        .should_receive(:restart_and_update).once
+                    @poller.poll
+                end
+
+                it "does not catch SIGINT" do
+                    flexmock(@poller.updater)
+                        .should_receive(:update_failed?).and_raise(Interrupt)
+                    assert_raises(Interrupt) do
+                        @poller.poll
+                    end
+                end
+            end
         end
     end
 end
