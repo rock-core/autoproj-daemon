@@ -17,6 +17,10 @@ module Autoproj
         # representing open Pull Requests to the actual Pull Requests
         # on each watched repository
         class GitPoller
+            # Delay in {#poll} before we restart the daemon when something went
+            # terribly wrong
+            EMERGENCY_RESTART_DELAY = 10
+
             # @return [Autoproj::Daemon::Buildbot]
             attr_reader :bb
 
@@ -93,12 +97,18 @@ module Autoproj
                 Autoproj.message "Fetching branches from "\
                     "#{filtered_repos.size} repositories..."
 
-                @package_branches = filtered_repos.flat_map do |pkg|
+                package_branches = filtered_repos.flat_map do |pkg|
                     client.branch(pkg.repo_url, pkg.branch)
+                rescue StandardError => e
+                    Autoproj.warn "could not fetch information about #{pkg.package} "\
+                                  "from #{pkg.repo_url}, branch #{pkg.branch}"
+                    Autoproj.warn "ignoring this package until this gets resolved"
+                    Autoproj.warn e.message
+                    nil
                 end
 
                 Autoproj.message "Tracking #{package_branches.size} branches"
-                package_branches
+                @package_branches = package_branches.compact
             end
 
             # @param [GitAPI::Branch] branch
@@ -406,6 +416,17 @@ module Autoproj
 
                 update_package_branches
                 handle_mainline_changes
+            rescue StandardError => e
+                Autoproj.warn "Exception raised by code in GitPoller#poll"
+                Autoproj.warn "Waiting #{EMERGENCY_RESTART_DELAY}s and "\
+                              "restarting the daemon"
+                Autoproj.warn e.message
+                e.backtrace.each do |line|
+                    Autoproj.warn "  #{line}"
+                end
+
+                sleep EMERGENCY_RESTART_DELAY
+                updater.restart_and_update
             end
         end
     end
