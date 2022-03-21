@@ -3,6 +3,7 @@
 require "autobuild"
 require "autoproj/ops/tools"
 require "autoproj/vcs_definition"
+require "autobuild/import/git"
 
 module Autoproj
     module Daemon
@@ -46,7 +47,13 @@ module Autoproj
 
             # @return [String]
             def branch
-                vcs[:remote_branch] || vcs[:branch] || "master"
+                current_importer = autobuild.importer
+
+                vcs[:remote_branch] ||
+                    vcs[:branch] ||
+                    current_importer.try_resolve_remote_head_from_server(
+                        autobuild
+                    )
             end
 
             # @return [String]
