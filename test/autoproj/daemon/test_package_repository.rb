@@ -60,22 +60,48 @@ module Autoproj
                     FileUtils.rm_rf dir
                 end
 
-                before do
-                    @temp_dir = untar("gitrepo-nomaster.tar.xz")
-                    @ws = ws_create
-                    @package = PackageRepository.new(
-                        "teste_no_master",
-                        { type: "git", url: File.join(temp_dir, "gitrepo-nomaster.git") },
-                        ws: ws
-                    )
+                describe "#non_master_default_branch" do
+                    before do
+                        @temp_dir = untar("gitrepo-nomaster.tar.xz")
+                        @ws = ws_create
+                        @package = PackageRepository.new(
+                            "teste_no_master",
+                            { type: "git",
+                              url: File.join(temp_dir, "gitrepo-nomaster.git") },
+                            ws: ws,
+                            local_dir: File.join(temp_dir, "gitrepo-nomaster.git")
+                        )
+                    end
+                    it "see current default branch" do
+                        assert_equal "temp/branch", package.branch
+                    end
+
+                    after do
+                        remove_tar(temp_dir)
+                    end
                 end
 
-                it "see current default branch" do
-                    assert_equal "temp/branch", package.branch
-                end
+                describe "#defined_branch" do
+                    before do
+                        @temp_dir = untar("gitrepo-nomaster.tar.xz")
+                        @ws = ws_create
+                        @package = PackageRepository.new(
+                            "teste_no_master",
+                            { type: "git",
+                              url: File.join(temp_dir, "gitrepo-nomaster.git"),
+                              branch: "other_branch" },
+                            ws: ws,
+                            local_dir: File.join(temp_dir, "gitrepo-nomaster.git")
+                        )
+                    end
 
-                after do
-                    remove_tar(temp_dir)
+                    it "see current default branch" do
+                        assert_equal "other_branch", package.branch
+                    end
+
+                    after do
+                        remove_tar(temp_dir)
+                    end
                 end
             end
         end
