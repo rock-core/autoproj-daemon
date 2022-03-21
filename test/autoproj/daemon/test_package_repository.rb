@@ -70,10 +70,8 @@ module Autoproj
                     )
                 end
 
-                describe "#check_default_branch" do
-                    it "see current default branch" do
-                        assert_equal "temp/branch", package.branch
-                    end
+                it "see current default branch" do
+                    assert_equal "temp/branch", package.branch
                 end
 
                 after do
