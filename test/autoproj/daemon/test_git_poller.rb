@@ -42,7 +42,10 @@ module Autoproj
                 autoproj_daemon_git_init(pkg_name)
 
                 package = PackageRepository.new(
-                    pkg_name, vcs, local_dir: local_dir
+                    pkg_name,
+                    vcs,
+                    local_dir: local_dir,
+                    ws: @ws
                 )
 
                 @packages << package

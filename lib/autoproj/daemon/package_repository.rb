@@ -3,6 +3,7 @@
 require "autobuild"
 require "autoproj/ops/tools"
 require "autoproj/vcs_definition"
+require "autobuild/import/git"
 
 module Autoproj
     module Daemon
@@ -46,7 +47,16 @@ module Autoproj
 
             # @return [String]
             def branch
-                vcs[:remote_branch] || vcs[:branch] || "master"
+                explicit_branch = vcs[:remote_branch] || vcs[:branch]
+                return explicit_branch if explicit_branch
+
+                autobuild.importer.resolve_remote_head(
+                    autobuild
+                )
+            rescue Autobuild::SubcommandFailed
+                Autobuild.warn "Could not retrieve branch for "\
+                               "#{package}, seting to master"
+                "master"
             end
 
             # @return [String]

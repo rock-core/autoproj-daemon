@@ -38,6 +38,72 @@ module Autoproj
                     assert_equal "drivers/iodrivers_base", package.autobuild.name
                 end
             end
+
+            describe "#default_branch" do
+                attr_reader :temp_dir
+
+                def untar(file)
+                    dir = Dir.mktmpdir
+                    data_dir = File.join(File.dirname(__FILE__), "../../", "data")
+                    FileUtils.mkdir_p(dir, mode: 0o700)
+                    Autobuild.logdir = "#{dir}/log"
+                    FileUtils.mkdir_p Autobuild.logdir
+                    Autobuild.silent = true
+                    file = File.expand_path(file, data_dir)
+                    Dir.chdir(dir) do
+                        system("tar xf #{file}")
+                    end
+                    dir
+                end
+
+                def remove_tar(dir)
+                    FileUtils.rm_rf dir
+                end
+
+                describe "#non_master_default_branch" do
+                    before do
+                        @temp_dir = untar("gitrepo-nomaster.tar.xz")
+                        @ws = ws_create
+                        @package = PackageRepository.new(
+                            "teste_no_master",
+                            { type: "git",
+                              url: File.join(temp_dir, "gitrepo-nomaster.git") },
+                            ws: ws,
+                            local_dir: File.join(temp_dir, "gitrepo-nomaster.git")
+                        )
+                    end
+                    it "see current default branch" do
+                        assert_equal "temp/branch", package.branch
+                    end
+
+                    after do
+                        remove_tar(temp_dir)
+                    end
+                end
+
+                describe "#defined_branch" do
+                    before do
+                        @temp_dir = untar("gitrepo-nomaster.tar.xz")
+                        @ws = ws_create
+                        @package = PackageRepository.new(
+                            "teste_no_master",
+                            { type: "git",
+                              url: File.join(temp_dir, "gitrepo-nomaster.git"),
+                              branch: "other_branch" },
+                            ws: ws,
+                            local_dir: File.join(temp_dir, "gitrepo-nomaster.git")
+                        )
+                    end
+
+                    it "see current default branch" do
+                        assert_equal "other_branch", package.branch
+                    end
+
+                    after do
+                        remove_tar(temp_dir)
+                    end
+                end
+            end
         end
     end
 end
