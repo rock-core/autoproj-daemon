@@ -47,12 +47,10 @@ module Autoproj
 
             # @return [String]
             def branch
-                curr_branch = vcs[:remote_branch] || vcs[:branch]
-                return curr_branch if curr_branch
+                explicit_branch = vcs[:remote_branch] || vcs[:branch]
+                return explicit_branch if explicit_branch
 
-                current_importer = autobuild.importer
-
-                current_importer.resolve_remote_head(
+                autobuild.importer.resolve_remote_head(
                     autobuild
                 )
             end
