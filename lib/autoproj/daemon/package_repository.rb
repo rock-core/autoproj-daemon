@@ -53,6 +53,10 @@ module Autoproj
                 autobuild.importer.resolve_remote_head(
                     autobuild
                 )
+            rescue Autobuild::SubcommandFailed
+                Autobuild.warn "Could not retrieve branch for "\
+                               "#{package}, seting to master"
+                "master"
             end
 
             # @return [String]
