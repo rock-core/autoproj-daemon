@@ -41,6 +41,11 @@ module Autoproj
                     @model["head"]["sha"]
                 end
 
+                # @return [Integer]
+                def head_repo_id
+                    Integer(@model["head"]["repo"]["id"])
+                end
+
                 # @return [Time]
                 def updated_at
                     Time.parse(@model["updated_at"])

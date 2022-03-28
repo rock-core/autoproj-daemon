@@ -50,6 +50,7 @@ module Autoproj
 
                     # @param [Gitlab::ObjectifiedHash] mrequest
                     # @return [Hash]
+                    # rubocop: disable Metrics/AbcSize
                     def merge_request_to_ruby_hash(git_url, mrequest)
                         state = mrequest.state == "opened" ? "open" : mrequest.state.to_s
                         {
@@ -73,12 +74,16 @@ module Autoproj
                             head: {
                                 ref: mrequest.source_branch,
                                 sha: mrequest.sha,
+                                repo: {
+                                    id: mrequest.source_project_id
+                                },
                                 user: {
                                     login: ""
                                 }
                             }
                         }
                     end
+                    # rubocop: enable Metrics/AbcSize
 
                     # @param [Gitlab::ObjectifiedHash] branch
                     # @return [Hash]
