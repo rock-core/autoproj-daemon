@@ -139,7 +139,8 @@ module Autoproj
                                              "workspace, and will trigger a new build "\
                                              "if that's successful"
                         else
-                            bb.post_mainline_changes(pkg, branch)
+                            bb.post_mainline_changes(pkg, branch,
+                                                     buildconf_branch: buildconf.branch)
                         end
                         changed = true
                     end
@@ -157,7 +158,8 @@ module Autoproj
                     "Push detected on the buildconf: local: #{buildconf.head_sha}, "\
                     "remote: #{buildconf_branch.sha}"
                 )
-                bb.post_mainline_changes(buildconf, buildconf_branch)
+                bb.post_mainline_changes(buildconf, buildconf_branch,
+                                         buildconf_branch: buildconf_branch.branch_name)
                 true
             end
 

@@ -56,6 +56,8 @@ module Autoproj
                 post_change(
                     author: pull_request.author,
                     branch: branch_name,
+                    source_branch: pull_request.head_branch,
+                    source_project_id: pull_request.head_repo_id,
                     category: "pull_request",
                     codebase: "",
                     committer: pull_request.last_committer,
@@ -71,12 +73,13 @@ module Autoproj
             # @param [PackageRepository] _package
             # @param [GitAPI::Branch] remote_branch
             # @return [Boolean]
-            def post_mainline_changes(_package, remote_branch)
+            def post_mainline_changes(_package, remote_branch, buildconf_branch: "master")
                 post_change(
                     # Codebase is a single codebase - i.e. single repo, but
                     # tracked across forks
                     author: remote_branch.commit_author,
-                    branch: remote_branch.branch_name,
+                    branch: buildconf_branch,
+                    source_branch: remote_branch.branch_name,
                     category: "push",
                     codebase: "",
                     committer: remote_branch.commit_author,
@@ -91,11 +94,13 @@ module Autoproj
             def post_change(
                 author: "",
                 branch: "master",
+                source_branch: "master",
                 category: "",
                 codebase: "",
                 comments: "",
                 committer: "",
                 project: @project,
+                source_project_id: nil,
                 repository: "",
                 revision: "",
                 revlink: "",
@@ -103,6 +108,11 @@ module Autoproj
             )
                 http = Net::HTTP.new(uri.host, uri.port)
                 request = Net::HTTP::Post.new(uri.request_uri)
+
+                properties = {
+                    source_branch: source_branch
+                }
+                properties[:source_project_id] = source_project_id if source_project_id
 
                 options = {
                     author: author,
@@ -115,7 +125,8 @@ module Autoproj
                     repository: repository,
                     revision: revision,
                     revlink: revlink,
-                    when_timestamp: when_timestamp
+                    when_timestamp: when_timestamp,
+                    properties: properties.to_json
                 }
                 Autoproj.message options.to_s
                 request.set_form_data(options)

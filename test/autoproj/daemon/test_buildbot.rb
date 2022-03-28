@@ -75,9 +75,11 @@ module Autoproj
                         author: "author",
                         branch: "autoproj/wetpaint/github.com/"\
                                 "tidewise/drivers-gps_ublox/pulls/22",
+                        source_branch: "feature",
                         category: "pull_request",
                         codebase: "",
                         committer: "contributor",
+                        source_project_id: 10,
                         repository: "https://github.com/tidewise/drivers-gps_ublox",
                         revision: "abcdef",
                         revlink: "https://github.com/tidewise/drivers-gps_ublox/pull/22",
@@ -88,6 +90,8 @@ module Autoproj
                         repo_url: "git@github.com:tidewise/drivers-gps_ublox.git",
                         number: 22,
                         base_branch: "master",
+                        head_branch: "feature",
+                        head_repo_id: 10,
                         last_committer: "contributor",
                         author: "author",
                         head_sha: "abcdef",
@@ -102,7 +106,8 @@ module Autoproj
                     now = Time.now
                     flexmock(bb).should_receive(:post_change).with(
                         author: "g-arjones",
-                        branch: "devel",
+                        branch: "main",
+                        source_branch: "devel",
                         category: "push",
                         codebase: "",
                         committer: "g-arjones",
@@ -120,7 +125,7 @@ module Autoproj
                         commit_date: now
                     )
 
-                    bb.post_mainline_changes(flexmock, branch)
+                    bb.post_mainline_changes(flexmock, branch, buildconf_branch: "main")
                 end
             end
         end
