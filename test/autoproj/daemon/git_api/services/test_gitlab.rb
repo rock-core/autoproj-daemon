@@ -210,6 +210,11 @@ module Autoproj
                         assert_equal "master", pull_request.base_branch
                     end
 
+                    it "returns the head branch" do
+                        pull_request = client.pull_requests(url).first
+                        assert_equal "test1", pull_request.head_branch
+                    end
+
                     it "returns the head sha" do
                         pull_request = client.pull_requests(url).first
                         assert_equal "8888888888888888888888888888888888888888",
