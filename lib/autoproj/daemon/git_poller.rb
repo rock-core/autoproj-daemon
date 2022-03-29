@@ -350,7 +350,7 @@ module Autoproj
                 all_prs.flat_map do |pr|
                     packages_affected_by_pull_request(pr).map do |pkg|
                         key = if pkg.package_set?
-                                  "pkg_set:#{pkg.vcs[:repository_id]}"
+                                  "pkg_set:#{pkg.overrides_key}"
                               else
                                   pkg.package
                               end
