@@ -2,6 +2,7 @@
 
 require "test_helper"
 require "autoproj/daemon/buildbot"
+require "timecop"
 
 # Autoproj's main module
 module Autoproj
@@ -30,17 +31,39 @@ module Autoproj
 
             describe "#build" do
                 it "returns true if command is accepted" do
+                    Timecop.freeze
                     ws.config.daemon_buildbot_host = "bb-master"
                     ws.config.daemon_buildbot_port = 8666
 
                     response = flexmock
                     response.should_receive(code: "200")
 
+                    options = {
+                        "author" => "",
+                        "branch" => "master",
+                        "codebase" => "",
+                        "category" => "",
+                        "comments" => "",
+                        "committer" => "",
+                        "project" => "wetpaint",
+                        "repository" => "",
+                        "revision" => "",
+                        "revlink" => "",
+                        "when_timestamp" => Time.now.to_s,
+                        "properties" => {
+                            source_branch: "feature",
+                            source_project_id: 1
+                        }.to_json
+                    }
+
                     flexmock(Net::HTTP)
                         .new_instances
-                        .should_receive("request").and_return(response)
+                        .should_receive("request").and_return do |request|
+                            assert_equal options, URI.decode_www_form(request.body).to_h
+                            response
+                        end
 
-                    assert bb.post_change
+                    assert bb.post_change(source_branch: "feature", source_project_id: 1)
                 end
                 it "returns false if command fails" do
                     ws.config.daemon_buildbot_host = "bb-master"
@@ -75,9 +98,11 @@ module Autoproj
                         author: "author",
                         branch: "autoproj/wetpaint/github.com/"\
                                 "tidewise/drivers-gps_ublox/pulls/22",
+                        source_branch: "feature",
                         category: "pull_request",
                         codebase: "",
                         committer: "contributor",
+                        source_project_id: 10,
                         repository: "https://github.com/tidewise/drivers-gps_ublox",
                         revision: "abcdef",
                         revlink: "https://github.com/tidewise/drivers-gps_ublox/pull/22",
@@ -88,6 +113,8 @@ module Autoproj
                         repo_url: "git@github.com:tidewise/drivers-gps_ublox.git",
                         number: 22,
                         base_branch: "master",
+                        head_branch: "feature",
+                        head_repo_id: 10,
                         last_committer: "contributor",
                         author: "author",
                         head_sha: "abcdef",
@@ -102,7 +129,8 @@ module Autoproj
                     now = Time.now
                     flexmock(bb).should_receive(:post_change).with(
                         author: "g-arjones",
-                        branch: "devel",
+                        branch: "main",
+                        source_branch: "devel",
                         category: "push",
                         codebase: "",
                         committer: "g-arjones",
@@ -120,7 +148,7 @@ module Autoproj
                         commit_date: now
                     )
 
-                    bb.post_mainline_changes(flexmock, branch)
+                    bb.post_mainline_changes(flexmock, branch, buildconf_branch: "main")
                 end
             end
         end

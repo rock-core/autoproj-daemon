@@ -242,6 +242,16 @@ module Autoproj
                             assert_equal "master", pull_request.base_branch
                         end
 
+                        it "returns the head branch" do
+                            pull_request = client.pull_requests(url).first
+                            assert_equal "saveAllAndCommitFix", pull_request.head_branch
+                        end
+
+                        it "returns the head repo id" do
+                            pull_request = client.pull_requests(url).first
+                            assert_equal 166_283_792, pull_request.head_repo_id
+                        end
+
                         it "returns the head sha" do
                             pull_request = client.pull_requests(url).first
                             assert_equal "6a0c40a0cc4edd4b5c9e520be86ac0c5c4402dd9",

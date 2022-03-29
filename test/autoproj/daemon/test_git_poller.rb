@@ -52,10 +52,10 @@ module Autoproj
                 package
             end
 
-            def expect_mainline_build(pkg, branch)
+            def expect_mainline_build(pkg, branch, buildconf_branch: nil)
                 flexmock(@poller.bb)
                     .should_receive(:post_mainline_changes)
-                    .with(pkg, branch)
+                    .with(pkg, branch, buildconf_branch: buildconf_branch)
                     .once
                     .ordered
             end
@@ -381,8 +381,12 @@ module Autoproj
                             sha: iodrivers_base3.head_sha
                         )
 
-                        expect_mainline_build(iodrivers_base, branches.first)
-                        expect_mainline_build(iodrivers_base2, branches.first)
+                        expect_mainline_build(iodrivers_base, branches.first,
+                                              buildconf_branch: @buildconf.branch)
+
+                        expect_mainline_build(iodrivers_base2, branches.first,
+                                              buildconf_branch: @buildconf.branch)
+
                         expect_no_mainline_build(iodrivers_base3, any)
                         expect_no_mainline_build(@buildconf, any)
                         expect_restart_and_update
@@ -400,7 +404,9 @@ module Autoproj
                             sha: "abcdef"
                         )
 
-                        expect_mainline_build(@buildconf, branch)
+                        expect_mainline_build(@buildconf, branch,
+                                              buildconf_branch: @buildconf.branch)
+
                         expect_restart_and_update
 
                         @poller.update_package_branches
@@ -424,7 +430,9 @@ module Autoproj
                         sha: "abcdef"
                     )
 
-                    expect_mainline_build(@buildconf, branch)
+                    expect_mainline_build(@buildconf, branch,
+                                          buildconf_branch: @buildconf.branch)
+
                     expect_restart_and_update
 
                     @cache.add(pull_request, [])
@@ -455,7 +463,7 @@ module Autoproj
                         sha: @buildconf.head_sha
                     )
 
-                    expect_mainline_build(pkg, branch)
+                    expect_mainline_build(pkg, branch, buildconf_branch: "master")
                     expect_no_mainline_build(@buildconf, any)
                     expect_restart_and_update
 

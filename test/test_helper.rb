@@ -210,7 +210,11 @@ module Autoproj
                         }
                     },
                     head: {
+                        ref: options[:head_branch],
                         sha: options[:head_sha],
+                        repo: {
+                            id: options[:head_repo_id]
+                        },
                         user: {
                             login: options[:last_committer]
                         }

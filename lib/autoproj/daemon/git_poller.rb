@@ -139,7 +139,8 @@ module Autoproj
                                              "workspace, and will trigger a new build "\
                                              "if that's successful"
                         else
-                            bb.post_mainline_changes(pkg, branch)
+                            bb.post_mainline_changes(pkg, branch,
+                                                     buildconf_branch: buildconf.branch)
                         end
                         changed = true
                     end
@@ -157,7 +158,8 @@ module Autoproj
                     "Push detected on the buildconf: local: #{buildconf.head_sha}, "\
                     "remote: #{buildconf_branch.sha}"
                 )
-                bb.post_mainline_changes(buildconf, buildconf_branch)
+                bb.post_mainline_changes(buildconf, buildconf_branch,
+                                         buildconf_branch: buildconf_branch.branch_name)
                 true
             end
 
@@ -348,7 +350,7 @@ module Autoproj
                 all_prs.flat_map do |pr|
                     packages_affected_by_pull_request(pr).map do |pkg|
                         key = if pkg.package_set?
-                                  "pkg_set:#{pkg.vcs[:repository_id]}"
+                                  "pkg_set:#{pkg.overrides_key}"
                               else
                                   pkg.package
                               end

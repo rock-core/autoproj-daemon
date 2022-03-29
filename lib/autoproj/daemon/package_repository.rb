@@ -46,6 +46,11 @@ module Autoproj
             end
 
             # @return [String]
+            def overrides_key
+                Autoproj::VCSDefinition.from_raw(vcs).overrides_key
+            end
+
+            # @return [String]
             def branch
                 explicit_branch = vcs[:remote_branch] || vcs[:branch]
                 return explicit_branch if explicit_branch

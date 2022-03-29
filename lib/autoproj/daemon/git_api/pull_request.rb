@@ -32,8 +32,18 @@ module Autoproj
                 end
 
                 # @return [String]
+                def head_branch
+                    @model["head"]["ref"]
+                end
+
+                # @return [String]
                 def head_sha
                     @model["head"]["sha"]
+                end
+
+                # @return [Integer]
+                def head_repo_id
+                    Integer(@model["head"]["repo"]["id"])
                 end
 
                 # @return [Time]
