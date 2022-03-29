@@ -2,6 +2,7 @@
 
 require "test_helper"
 require "autoproj/daemon/buildbot"
+require "timecop"
 
 # Autoproj's main module
 module Autoproj
@@ -30,17 +31,39 @@ module Autoproj
 
             describe "#build" do
                 it "returns true if command is accepted" do
+                    Timecop.freeze
                     ws.config.daemon_buildbot_host = "bb-master"
                     ws.config.daemon_buildbot_port = 8666
 
                     response = flexmock
                     response.should_receive(code: "200")
 
+                    options = {
+                        "author" => "",
+                        "branch" => "master",
+                        "codebase" => "",
+                        "category" => "",
+                        "comments" => "",
+                        "committer" => "",
+                        "project" => "wetpaint",
+                        "repository" => "",
+                        "revision" => "",
+                        "revlink" => "",
+                        "when_timestamp" => Time.now.to_s,
+                        "properties" => {
+                            source_branch: "feature",
+                            source_project_id: 1
+                        }.to_json
+                    }
+
                     flexmock(Net::HTTP)
                         .new_instances
-                        .should_receive("request").and_return(response)
+                        .should_receive("request").and_return do |request|
+                            assert_equal options, URI.decode_www_form(request.body).to_h
+                            response
+                        end
 
-                    assert bb.post_change
+                    assert bb.post_change(source_branch: "feature", source_project_id: 1)
                 end
                 it "returns false if command fails" do
                     ws.config.daemon_buildbot_host = "bb-master"

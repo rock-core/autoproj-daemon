@@ -110,9 +110,9 @@ module Autoproj
                 request = Net::HTTP::Post.new(uri.request_uri)
 
                 properties = {
-                    source_branch: source_branch
-                }
-                properties[:source_project_id] = source_project_id if source_project_id
+                    source_branch: source_branch,
+                    source_project_id: source_project_id
+                }.compact
 
                 options = {
                     author: author,
