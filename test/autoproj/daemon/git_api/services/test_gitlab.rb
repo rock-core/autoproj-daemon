@@ -33,6 +33,7 @@ module Autoproj
 
                 it "transforms exceptions" do
                     assert_transforms(Errno::ECONNREFUSED, GitAPI::ConnectionFailed, "")
+                    assert_transforms(Errno::EHOSTUNREACH, GitAPI::ConnectionFailed, "")
                     assert_transforms(Net::ReadTimeout, GitAPI::ConnectionFailed, "")
                     assert_transforms(EOFError, GitAPI::ConnectionFailed, "")
                     assert_transforms(Errno::ECONNRESET, GitAPI::ConnectionFailed, "")
