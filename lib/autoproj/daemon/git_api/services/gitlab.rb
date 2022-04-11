@@ -150,27 +150,23 @@ module Autoproj
                         RateLimit.new(1000, 0)
                     end
 
-                    # rubocop: disable Metrics/AbcSize
+                    CONNECTION_FAILED_EXCEPTIONS = [
+                        Errno::ECONNREFUSED,
+                        Errno::EHOSTUNREACH,
+                        Net::ReadTimeout,
+                        EOFError,
+                        Errno::ECONNRESET,
+                        Errno::ECONNABORTED,
+                        Errno::EPIPE
+                    ].freeze
+
                     def exception_adapter
                         yield
                     rescue Gitlab::Error::NotFound => e
                         raise GitAPI::NotFound, e.message
-                    rescue Errno::ECONNREFUSED => e
-                        raise GitAPI::ConnectionFailed, e.message
-                    rescue Errno::EHOSTUNREACH => e
-                        raise GitAPI::ConnectionFailed, e.message
-                    rescue Net::ReadTimeout => e
-                        raise GitAPI::ConnectionFailed, e.message
-                    rescue EOFError => e
-                        raise GitAPI::ConnectionFailed, e.message
-                    rescue Errno::ECONNRESET => e
-                        raise GitAPI::ConnectionFailed, e.message
-                    rescue Errno::ECONNABORTED => e
-                        raise GitAPI::ConnectionFailed, e.message
-                    rescue Errno::EPIPE => e
+                    rescue *CONNECTION_FAILED_EXCEPTIONS => e
                         raise GitAPI::ConnectionFailed, e.message
                     end
-                    # rubocop: enable Metrics/AbcSize
 
                     # @return [String]
                     def default_endpoint
