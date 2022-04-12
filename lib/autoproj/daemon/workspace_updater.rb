@@ -38,6 +38,7 @@ module Autoproj
                         packages: true,
                         config: true,
                         deps: true,
+                        osdeps_filter_uptodate: true,
                         osdeps: false
                 )
                 @update_failed = false

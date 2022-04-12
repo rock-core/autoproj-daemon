@@ -27,6 +27,7 @@ module Autoproj
                                   packages: true,
                                   config: true,
                                   deps: true,
+                                  osdeps_filter_uptodate: true,
                                   reset: :force)
                     assert updater.update
                     refute updater.update_failed?
@@ -39,6 +40,7 @@ module Autoproj
                                   packages: true,
                                   config: true,
                                   deps: true,
+                                  osdeps_filter_uptodate: true,
                                   reset: :force).and_raise(RuntimeError, "foobar")
                     refute updater.update
                     assert updater.update_failed?
@@ -51,6 +53,7 @@ module Autoproj
                                   packages: true,
                                   config: true,
                                   deps: true,
+                                  osdeps_filter_uptodate: true,
                                   reset: :force).and_raise(ArgumentError, "foobar")
                     refute updater.update
                     assert updater.update_failed?
