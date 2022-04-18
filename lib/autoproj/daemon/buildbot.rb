@@ -47,8 +47,9 @@ module Autoproj
             # Publish a change indicating that a pull request was modified
             #
             # @param [GitAPI::PullRequest] pull_request
+            # @param [Array<PackageRepository>] packages
             # @return [Boolean] true if the posting was successful, false otherwise
-            def post_pull_request_changes(pull_request)
+            def post_pull_request_changes(packages, pull_request)
                 branch_name = GitPoller.branch_name_by_pull_request(
                     @project, pull_request
                 )
@@ -64,7 +65,10 @@ module Autoproj
                     repository: pull_request.repository_url,
                     revision: pull_request.head_sha,
                     revlink: pull_request.web_url,
-                    when_timestamp: pull_request.updated_at.tv_sec
+                    when_timestamp: pull_request.updated_at.tv_sec,
+                    properties: {
+                        packages: packages.map(&:package)
+                    }
                 )
             end
 
@@ -104,7 +108,8 @@ module Autoproj
                 repository: "",
                 revision: "",
                 revlink: "",
-                when_timestamp: Time.now
+                when_timestamp: Time.now,
+                properties: {}
             )
                 http = Net::HTTP.new(uri.host, uri.port)
                 request = Net::HTTP::Post.new(uri.request_uri)
