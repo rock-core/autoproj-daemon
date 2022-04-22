@@ -18,8 +18,12 @@ module Autoproj
         # on each watched repository
         class GitPoller
             # Delay in {#poll} before we restart the daemon when something went
-            # terribly wrong
+            # terribly wrong. In seconds.
             EMERGENCY_RESTART_DELAY = 10
+
+            # Delay in {#poll} before we restart the daemon after a failed update
+            # In seconds.
+            FAILED_UPDATE_RESTART_DELAY = 300
 
             # @return [Autoproj::Daemon::Buildbot]
             attr_reader :bb
@@ -405,7 +409,10 @@ module Autoproj
 
             # @return [void]
             def poll
-                unless updater.update_failed?
+                if updater.update_failed?
+                    secs = Time.now - updater.update_failed?
+                    updater.restart_and_update if secs > FAILED_UPDATE_RESTART_DELAY
+                else
                     update_pull_requests
                     update_branches
                     delete_stale_branches
