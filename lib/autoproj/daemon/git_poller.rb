@@ -395,7 +395,9 @@ module Autoproj
 
                     Autoproj.message "Updating #{pr.git_url.full_path}##{pr.number}"
                     commit_and_push_overrides(branch.branch_name, overrides)
-                    packages = packages_affected_by_pull_request(pr)
+                    packages =
+                        packages_affected_by_pull_request(pr)
+                        .find_all { |pkg| !pkg.package_set? && !pkg.buildconf? }
                     bb.post_pull_request_changes(packages, pr)
                     cache.add(pr, overrides)
                 end
