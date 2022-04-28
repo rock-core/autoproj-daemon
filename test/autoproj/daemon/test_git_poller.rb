@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require "timecop"
 require "test_helper"
 
 # Autoproj main module
@@ -892,6 +893,16 @@ module Autoproj
                     flexmock(@poller.updater)
                         .should_receive(:restart_and_update).once
                     @poller.poll
+                end
+
+                it "restarts the daemon if update fails" do
+                    flexmock(@poller.updater)
+                        .should_receive(:update_failed?).and_return(Time.now)
+                    flexmock(@poller.updater)
+                        .should_receive(:restart_and_update).once.and_raise(Interrupt)
+
+                    Timecop.freeze(Time.now + GitPoller::FAILED_UPDATE_RESTART_DELAY + 1)
+                    assert_raises(Interrupt) { @poller.poll }
                 end
 
                 it "does not catch SIGINT" do

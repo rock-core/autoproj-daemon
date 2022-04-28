@@ -20,7 +20,7 @@ module Autoproj
 
             # Whether an attempt to update the workspace has failed
             #
-            # @return [Boolean]
+            # @return [Time]
             def update_failed?
                 @update_failed
             end
@@ -48,7 +48,7 @@ module Autoproj
                 # should do is update the workspace on push events,
                 # no PR syncing and no triggering of builds
                 # on PR events
-                @update_failed = true
+                @update_failed = Time.now
                 Autoproj.error e.message
                 false
             end
