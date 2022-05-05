@@ -634,12 +634,16 @@ module Autoproj
                     overrides = []
                     overrides << {
                         "iodrivers_base" => {
-                            "remote_branch" => "refs/pull/12/merge"
+                            "remote_branch" => "refs/pull/12/merge",
+                            "single_branch" => false,
+                            "shallow" => false
                         }
                     }
                     overrides << {
                         "drivers/iodrivers_base" => {
-                            "remote_branch" => "refs/pull/12/merge"
+                            "remote_branch" => "refs/pull/12/merge",
+                            "single_branch" => false,
+                            "shallow" => false
                         }
                     }
 
@@ -680,7 +684,9 @@ module Autoproj
                                   "rock-core/drivers-iodrivers_base/pulls/12"
                     expected_overrides = [{
                         "drivers/iodrivers_base" => {
-                            "remote_branch" => "refs/pull/12/merge"
+                            "remote_branch" => "refs/pull/12/merge",
+                            "single_branch" => false,
+                            "shallow" => false
                         }
                     }]
 
@@ -711,7 +717,9 @@ module Autoproj
                     overrides = []
                     overrides << {
                         "drivers/iodrivers_base" => {
-                            "remote_branch" => "refs/pull/12/merge"
+                            "remote_branch" => "refs/pull/12/merge",
+                            "single_branch" => false,
+                            "shallow" => false
                         }
                     }
 
@@ -756,7 +764,9 @@ module Autoproj
                     overrides = []
                     overrides << {
                         "drivers/iodrivers_base" => {
-                            "remote_branch" => "refs/pull/12/merge"
+                            "remote_branch" => "refs/pull/12/merge",
+                            "single_branch" => false,
+                            "shallow" => false
                         }
                     }
 
@@ -802,7 +812,9 @@ module Autoproj
                     overrides = []
                     overrides << {
                         "drivers/iodrivers_base" => {
-                            "remote_branch" => "refs/pull/12/merge"
+                            "remote_branch" => "refs/pull/12/merge",
+                            "single_branch" => false,
+                            "shallow" => false
                         }
                     }
 

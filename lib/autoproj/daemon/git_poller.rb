@@ -360,7 +360,9 @@ module Autoproj
                               end
                         {
                             key => {
-                                "remote_branch" => client.test_branch_name(pr)
+                                "remote_branch" => client.test_branch_name(pr),
+                                "single_branch" => false,
+                                "shallow" => false
                             }
                         }
                     end
