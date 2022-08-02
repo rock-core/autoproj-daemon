@@ -108,14 +108,15 @@ module Autoproj
                 host,
                 access_token,
                 api_endpoint = nil,
-                service = nil
+                service = nil,
+                **options
             )
                 host = sanitize_string(host).sub(/^www./, "")
                 options = {
                     "service" => sanitize_string(service),
                     "api_endpoint" => sanitize_string(api_endpoint),
                     "access_token" => access_token.to_s.strip
-                }
+                }.merge(options.transform_keys(&:to_s))
 
                 options.compact!
                 options.delete_if { |_, v| v.empty? }

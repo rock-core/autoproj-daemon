@@ -30,8 +30,23 @@ module Autoproj
 
                     NUMBER_RX = /\#(\d+)/.freeze
 
-                    def initialize(**options)
-                        super
+                    # @return [Symbol] "auto", the merge commit used in the CI
+                    #   build will be the GitHub-generated merge commit if
+                    #   available, and the HEAD of the pull request's branch
+                    #   otherwise. If "merge", it is always the merge commit
+                    #   unless the pull request is a draft.  If "head", it is
+                    #   always the pull request's branch's HEAD.
+                    attr_accessor :pr_commit_strategy
+
+                    # @param [Symbol] pr_commit_strategy If "auto", the merge
+                    #   commit used in the CI build will be the GitHub-generated
+                    #   merge commit if available, and the HEAD of the pull
+                    #   request's branch otherwise. If "merge", it is always
+                    #   the merge commit unless the pull request is a draft.
+                    #   If "head", it is always the pull request's branch's
+                    #   HEAD.
+                    def initialize(pr_commit_strategy: "auto", **options)
+                        super(**options)
 
                         stack = Faraday::RackBuilder.new do |builder|
                             builder.use Faraday::HttpCache, serializer: Marshal,
@@ -43,6 +58,8 @@ module Autoproj
                         end
 
                         options.merge!(middleware: stack).compact!
+
+                        @pr_commit_strategy = pr_commit_strategy
 
                         @client = Octokit::Client.new(**options)
                         @client.auto_paginate = true
@@ -140,11 +157,18 @@ module Autoproj
                     # @param [GitAPI::PullRequest] pull_request
                     # @return [String]
                     def test_branch_name(pull_request)
-                        head = if pull_request.draft? || !pull_request.mergeable?
-                                   "head"
-                               else
-                                   "merge"
-                               end
+                        head =
+                            if pull_request.draft?
+                                "head"
+                            elsif @pr_commit_strategy == "merge"
+                                "merge"
+                            elsif @pr_commit_strategy == "head"
+                                "head"
+                            elsif pull_request.mergeable?
+                                "merge"
+                            else
+                                "head"
+                            end
 
                         "refs/pull/#{pull_request.number}/#{head}"
                     end

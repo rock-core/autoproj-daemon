@@ -68,18 +68,15 @@ module Autoproj
 
                     all_services.each do |host, params|
                         params = params.merge(config[host].compact) if config[host]
-                        service = params["service"]
-                        endpoint = params["api_endpoint"]
-                        token = params["access_token"]
+                        params = params.dup
+                        service = params.delete("service")
 
                         validate_service_name(service, host)
 
                         begin
                             @services[host] = Services.send(
                                 service,
-                                host: host,
-                                api_endpoint: endpoint,
-                                access_token: token
+                                host: host, **params.transform_keys(&:to_sym)
                             )
                         rescue Autoproj::ConfigError
                             next
@@ -91,6 +88,15 @@ module Autoproj
                 # @return [Boolean]
                 def supports?(url)
                     @services.key?(URL.new(url).host)
+                end
+
+                # @param [String] host the service host, e.g. github.com
+                # @return [Service] the service object
+                # @raise ArgumentError if no service is configured for this host
+                def service_for_host(host)
+                    @services.fetch(host)
+                rescue KeyError
+                    raise ArgumentError, "no service configured for #{host}"
                 end
 
                 # @param [String] url

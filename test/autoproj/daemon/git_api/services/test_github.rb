@@ -322,15 +322,49 @@ module Autoproj
                             assert pull_request.mergeable?
                         end
 
-                        it "returns the mergeable status" do
+                        it "uses the merge branch by default is mergeable? is true" do
+                            pr_model["merged_at"] = nil
+                            pr_model["merge_commit_sha"] = "something"
                             pull_request = client.pull_requests(url).first
-                            assert pull_request.mergeable?
                             assert_equal "refs/pull/81609/merge",
                                          client.test_branch_name(pull_request)
+                        end
 
-                            pr_model["mergeable"] = false
-                            pull_request = PullRequest.new(URL.new(url), pr_model)
-                            refute pull_request.mergeable?
+                        it "uses the head branch by default if mergeable? is false" do
+                            pr_model["merged_at"] = nil
+                            pr_model["merge_commit_sha"] = nil
+                            pull_request = client.pull_requests(url).first
+                            assert_equal "refs/pull/81609/head",
+                                         client.test_branch_name(pull_request)
+                        end
+
+                        it "uses the merge branch if pr_commit_strategy "\
+                           "is set to merge, regardless of mergeable?" do
+                            pull_request = client.pull_requests(url).first
+                            flexmock(pull_request).should_receive(mergeable?: false)
+                            client.service_for_host("github.com")
+                                  .pr_commit_strategy = "merge"
+                            assert_equal "refs/pull/81609/merge",
+                                         client.test_branch_name(pull_request)
+                        end
+
+                        it "uses the head branch if pr_commit_strategy is set to merge, "\
+                           "if the pull request is a draft" do
+                            pull_request = client.pull_requests(url).first
+                            flexmock(pull_request).should_receive(mergeable?: false)
+                            flexmock(pull_request).should_receive(draft?: true)
+                            client.service_for_host("github.com")
+                                  .pr_commit_strategy = "merge"
+                            assert_equal "refs/pull/81609/head",
+                                         client.test_branch_name(pull_request)
+                        end
+
+                        it "uses the head branch if pr_commit_strategy is set to head, "\
+                           "regardless of mergeable?" do
+                            pull_request = client.pull_requests(url).first
+                            flexmock(pull_request).should_receive(mergeable?: true)
+                            client.service_for_host("github.com")
+                                  .pr_commit_strategy = "head"
                             assert_equal "refs/pull/81609/head",
                                          client.test_branch_name(pull_request)
                         end
