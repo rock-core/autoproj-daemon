@@ -53,7 +53,9 @@ module Autoproj
                     def pull_requests(git_url, **options)
                         exception_adapter do
                             @client.pull_requests(git_url.path, **options).map do |pr|
-                                PullRequest.from_ruby_hash(git_url, pr.to_hash)
+                                mergeable = !pr["merged_at"] && pr["merge_commit_sha"]
+                                pr = { "mergeable" => mergeable }.merge(pr.to_hash)
+                                PullRequest.from_ruby_hash(git_url, pr)
                             end
                         end
                     end

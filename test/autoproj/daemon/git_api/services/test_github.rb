@@ -300,6 +300,28 @@ module Autoproj
                                          client.test_branch_name(pull_request)
                         end
 
+                        it "returns a non-mergeable PR if merged_at is not nil" do
+                            pr_model["merged_at"] = "something"
+                            pr_model["merge_commit_sha"] = "something"
+                            pull_request = client.pull_requests(url).first
+                            refute pull_request.mergeable?
+                        end
+
+                        it "returns a non-mergeable PR if merge_commit_sha is nil" do
+                            pr_model["merged_at"] = nil
+                            pr_model["merge_commit_sha"] = nil
+                            pull_request = client.pull_requests(url).first
+                            refute pull_request.mergeable?
+                        end
+
+                        it "returns a mergeable PR if merged_at is nil and "\
+                           "merge_commit_sha is not" do
+                            pr_model["merged_at"] = nil
+                            pr_model["merge_commit_sha"] = "something"
+                            pull_request = client.pull_requests(url).first
+                            assert pull_request.mergeable?
+                        end
+
                         it "returns the mergeable status" do
                             pull_request = client.pull_requests(url).first
                             assert pull_request.mergeable?
