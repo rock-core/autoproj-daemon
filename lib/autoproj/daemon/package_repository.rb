@@ -55,7 +55,7 @@ module Autoproj
                 explicit_branch = vcs[:remote_branch] || vcs[:branch]
                 return explicit_branch if explicit_branch
 
-                autobuild.importer.resolve_remote_head(
+                @branch ||= autobuild.importer.resolve_remote_head(
                     autobuild
                 )
             rescue Autobuild::SubcommandFailed
@@ -76,11 +76,13 @@ module Autoproj
 
             # @return [Autobuild::Package]
             def autobuild
-                pkg = ws.manifest.find_autobuild_package(package)
-                return pkg if pkg
+                @pkg ||= ws.manifest.find_autobuild_package(package)
+                return @pkg if @pkg
 
                 vcs_definition = Autoproj::VCSDefinition.from_raw(vcs)
-                Ops::Tools.create_autobuild_package(vcs_definition, package, local_dir)
+                @pkg = Ops::Tools.create_autobuild_package(
+                    vcs_definition, package, local_dir
+                )
             end
         end
     end

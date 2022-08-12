@@ -76,6 +76,16 @@ module Autoproj
                         assert_equal "temp/branch", package.branch
                     end
 
+                    it "caches the resolved branch" do
+                        flexmock(package.autobuild.importer)
+                            .should_receive(:resolve_remote_head)
+                            .once
+                            .pass_thru
+
+                        assert_equal "temp/branch", package.branch
+                        assert_equal "temp/branch", package.branch
+                    end
+
                     after do
                         remove_tar(temp_dir)
                     end
