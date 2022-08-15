@@ -209,6 +209,12 @@ module Autoproj
                             octomock.should_receive(:pull_requests)
                                     .with("rock-core/buildconf", base: nil, state: nil)
                                     .and_return([pr_model])
+
+                            @mergeable = true
+                            octomock.should_receive(:pull_request)
+                                    .with("rock-core/buildconf", 81_609)
+                                    .and_return { { "mergeable" => @mergeable } }
+                                    .by_default
                         end
 
                         it "stores repo url" do
@@ -300,39 +306,53 @@ module Autoproj
                                          client.test_branch_name(pull_request)
                         end
 
-                        it "returns a non-mergeable PR if merged_at is not nil" do
-                            pr_model["merged_at"] = "something"
-                            pr_model["merge_commit_sha"] = "something"
+                        it "returns a non-mergeable PR if the pull_request endpoint "\
+                           "says it is not" do
+                            @mergeable = false
                             pull_request = client.pull_requests(url).first
                             refute pull_request.mergeable?
                         end
 
-                        it "returns a non-mergeable PR if merge_commit_sha is nil" do
-                            pr_model["merged_at"] = nil
-                            pr_model["merge_commit_sha"] = nil
-                            pull_request = client.pull_requests(url).first
-                            refute pull_request.mergeable?
-                        end
-
-                        it "returns a mergeable PR if merged_at is nil and "\
-                           "merge_commit_sha is not" do
-                            pr_model["merged_at"] = nil
-                            pr_model["merge_commit_sha"] = "something"
+                        it "returns a mergeable PR if the pull_request endpoint "\
+                           "says it is" do
+                            @mergeable = true
                             pull_request = client.pull_requests(url).first
                             assert pull_request.mergeable?
                         end
 
+                        it "waits for mergeability to be known (positive case)" do
+                            octomock.should_receive(:pull_request)
+                                    .with("rock-core/buildconf", 81_609)
+                                    .times(3).and_return(
+                                        { "mergeable" => nil },
+                                        { "mergeable" => nil },
+                                        { "mergeable" => true }
+                                    )
+                            pull_request = client.pull_requests(url).first
+                            assert pull_request.mergeable?
+                        end
+
+                        it "waits for mergeability to be known (negative case)" do
+                            octomock.should_receive(:pull_request)
+                                    .with("rock-core/buildconf", 81_609)
+                                    .times(3).and_return(
+                                        { "mergeable" => nil },
+                                        { "mergeable" => nil },
+                                        { "mergeable" => false }
+                                    )
+                            pull_request = client.pull_requests(url).first
+                            refute pull_request.mergeable?
+                        end
+
                         it "uses the merge branch by default is mergeable? is true" do
-                            pr_model["merged_at"] = nil
-                            pr_model["merge_commit_sha"] = "something"
+                            @mergeable = true
                             pull_request = client.pull_requests(url).first
                             assert_equal "refs/pull/81609/merge",
                                          client.test_branch_name(pull_request)
                         end
 
                         it "uses the head branch by default if mergeable? is false" do
-                            pr_model["merged_at"] = nil
-                            pr_model["merge_commit_sha"] = nil
+                            @mergeable = false
                             pull_request = client.pull_requests(url).first
                             assert_equal "refs/pull/81609/head",
                                          client.test_branch_name(pull_request)

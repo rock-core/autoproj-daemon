@@ -70,9 +70,35 @@ module Autoproj
                     def pull_requests(git_url, **options)
                         exception_adapter do
                             @client.pull_requests(git_url.path, **options).map do |pr|
-                                mergeable = !pr["merged_at"] && pr["merge_commit_sha"]
-                                pr = { "mergeable" => mergeable }.merge(pr.to_hash)
+                                mergeable =
+                                    if pr["merged_at"]
+                                        false
+                                    else
+                                        pull_request_mergeable?(git_url, pr["number"])
+                                    end
+
+                                pr = pr.to_hash.merge({ "mergeable" => mergeable })
                                 PullRequest.from_ruby_hash(git_url, pr)
+                            end
+                        end
+                    end
+
+                    # Check if a pull request is mergeable
+                    #
+                    # @param [GitAPI::URL] repo_url the repository URL
+                    # @param [Integer] number the pull request number
+                    def pull_request_mergeable?(git_url, number, poll: 0.1)
+                        loop do
+                            exception_adapter do
+                                info = @client.pull_request(git_url.path, number)
+                                mergeable = info["mergeable"]
+                                return mergeable unless mergeable.nil?
+
+                                Autoproj.message(
+                                    "waiting for GitHub to compute mergeability "\
+                                    "for #{git_url.path}##{number}"
+                                )
+                                sleep(poll)
                             end
                         end
                     end
