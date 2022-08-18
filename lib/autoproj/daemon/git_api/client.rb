@@ -207,7 +207,9 @@ module Autoproj
                 end
 
                 # @param [String] ref
-                # @param [GitAPI::PullRequest] pull_request
+                # @param [GitAPI::PullRequest] pull_request the pull request that
+                #   refers to `ref`, used to resolve which Git service we should
+                #   be using to resolve the reference if `ref` is not enough
                 # @return [String]
                 def extract_info_from_pull_request_ref(ref, pull_request)
                     begin
@@ -216,8 +218,7 @@ module Autoproj
                         url = pull_request.git_url.raw
                     end
 
-                    service(url)
-                        .extract_info_from_pull_request_ref(ref, pull_request)
+                    service(url).extract_info_from_pull_request_ref(ref, pull_request)
                 end
 
                 # @param [GitAPI::PullRequest] pull_request
