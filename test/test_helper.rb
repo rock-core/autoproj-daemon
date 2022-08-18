@@ -10,6 +10,7 @@ require "yaml"
 require "octokit"
 require "open3"
 require "rubygems/package"
+require "timecop"
 
 module Autoproj
     module Daemon
@@ -51,6 +52,11 @@ module Autoproj
             def setup
                 super
                 @storage = GithubStorage.new
+            end
+
+            def teardown
+                Timecop.return
+                super
             end
 
             def autoproj_daemon_create_ws(**vcs)
