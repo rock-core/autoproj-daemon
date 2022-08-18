@@ -11,7 +11,6 @@ module Autoproj
         module GitAPI
             describe Client do
                 include Autoproj::Daemon::TestHelpers
-                attr_reader :client
 
                 before do
                     autoproj_daemon_create_ws(
@@ -22,8 +21,8 @@ module Autoproj
                         "github.com", "apikey", nil, nil,
                         mergeability_timeout: 0.1
                     )
-                    @client = Client.new(ws)
                 end
+                let(:client) { Client.new(ws) }
 
                 describe "live API tests" do
                     before do
@@ -60,9 +59,20 @@ module Autoproj
                     let(:client) { Client.new(ws) }
                     before do
                         @url = "git@github.com:rock-core/buildconf"
-                        @octomock = flexmock(Octokit::Client).new_instances
-                        @octomock.should_receive(:rate_limit)
-                                 .and_return(Service::RateLimit.new(1, 0))
+                        @octomock = flexmock("octomock", :on, Octokit::Client)
+                        @octomock_nocache =
+                            flexmock("octomock-nocache", :on, Octokit::Client)
+                        github_mock = flexmock(GitAPI::Services::GitHub).new_instances
+                        github_mock.should_receive(:create_octokit_client)
+                                   .with(hsh(cache: true)).and_return { @octomock }
+                        github_mock.should_receive(:create_octokit_client)
+                                   .with(hsh(cache: false)).and_return(@octomock_nocache)
+                        @octomock
+                            .should_receive(:rate_limit)
+                            .and_return(Service::RateLimit.new(1, 0))
+                        @octomock_nocache
+                            .should_receive(:rate_limit)
+                            .and_return(Service::RateLimit.new(1, 0))
                     end
 
                     def assert_transforms(from, to, *args)
@@ -209,15 +219,17 @@ module Autoproj
                                     File.expand_path("github_pull_request.json", __dir__)
                                 )
                             )
-                            octomock.should_receive(:pull_requests)
-                                    .with("rock-core/buildconf", base: nil, state: nil)
-                                    .and_return([pr_model])
+                            @octomock
+                                .should_receive(:pull_requests)
+                                .with("rock-core/buildconf", base: nil, state: nil)
+                                .and_return([pr_model])
 
                             @mergeable = true
-                            octomock.should_receive(:pull_request)
-                                    .with("rock-core/buildconf", 81_609)
-                                    .and_return { { "mergeable" => @mergeable } }
-                                    .by_default
+                            @octomock_nocache
+                                .should_receive(:pull_request)
+                                .with("rock-core/buildconf", 81_609)
+                                .and_return { { "mergeable" => @mergeable } }
+                                .by_default
                         end
 
                         it "stores repo url" do
@@ -334,13 +346,14 @@ module Autoproj
                                 "github.com", "apikey", nil, nil,
                                 mergeability_timeout: 5
                             )
-                            octomock.should_receive(:pull_request)
-                                    .with("rock-core/buildconf", 81_609)
-                                    .times(3).and_return(
-                                        { "mergeable" => nil },
-                                        { "mergeable" => nil },
-                                        { "mergeable" => true }
-                                    )
+                            @octomock_nocache
+                                .should_receive(:pull_request)
+                                .with("rock-core/buildconf", 81_609)
+                                .times(3).and_return(
+                                    { "mergeable" => nil },
+                                    { "mergeable" => nil },
+                                    { "mergeable" => true }
+                                )
                             pull_request = client.pull_requests(url).first
                             assert pull_request.mergeable?
                         end
@@ -350,13 +363,14 @@ module Autoproj
                                 "github.com", "apikey", nil, nil,
                                 mergeability_timeout: 5
                             )
-                            octomock.should_receive(:pull_request)
-                                    .with("rock-core/buildconf", 81_609)
-                                    .times(3).and_return(
-                                        { "mergeable" => nil },
-                                        { "mergeable" => nil },
-                                        { "mergeable" => false }
-                                    )
+                            @octomock_nocache
+                                .should_receive(:pull_request)
+                                .with("rock-core/buildconf", 81_609)
+                                .times(3).and_return(
+                                    { "mergeable" => nil },
+                                    { "mergeable" => nil },
+                                    { "mergeable" => false }
+                                )
                             pull_request = client.pull_requests(url).first
                             refute pull_request.mergeable?
                         end
@@ -408,10 +422,11 @@ module Autoproj
 
                         describe "the mergeable cache" do
                             it "caches a positive mergeable flag" do
-                                octomock.should_receive(:pull_request)
-                                        .with("rock-core/buildconf", 81_609)
-                                        .and_return { { "mergeable" => true } }
-                                        .once
+                                @octomock_nocache
+                                    .should_receive(:pull_request)
+                                    .with("rock-core/buildconf", 81_609)
+                                    .and_return { { "mergeable" => true } }
+                                    .once
                                 client.pull_requests(url)
 
                                 pull_request = client.pull_requests(url).first
@@ -419,10 +434,11 @@ module Autoproj
                             end
 
                             it "caches a negative mergeable flag" do
-                                octomock.should_receive(:pull_request)
-                                        .with("rock-core/buildconf", 81_609)
-                                        .and_return { { "mergeable" => false } }
-                                        .once
+                                @octomock_nocache
+                                    .should_receive(:pull_request)
+                                    .with("rock-core/buildconf", 81_609)
+                                    .and_return { { "mergeable" => false } }
+                                    .once
                                 client.pull_requests(url)
 
                                 pull_request = client.pull_requests(url).first
@@ -432,12 +448,13 @@ module Autoproj
                             it "tries again a mergeability check that timed out" do
                                 calls = 0
                                 mergeable = nil
-                                octomock.should_receive(:pull_request)
-                                        .with("rock-core/buildconf", 81_609)
-                                        .and_return do
-                                            calls += 1
-                                            { "mergeable" => mergeable }
-                                        end
+                                @octomock_nocache
+                                    .should_receive(:pull_request)
+                                    .with("rock-core/buildconf", 81_609)
+                                    .and_return do
+                                        calls += 1
+                                        { "mergeable" => mergeable }
+                                    end
                                 client.pull_requests(url)
 
                                 last_calls = calls
@@ -448,13 +465,14 @@ module Autoproj
                             end
 
                             it "invalidates the cache if the pull request head changed" do
-                                octomock.should_receive(:pull_request)
-                                        .with("rock-core/buildconf", 81_609)
-                                        .and_return(
-                                            { "mergeable" => true },
-                                            { "mergeable" => false }
-                                        )
-                                        .twice
+                                @octomock_nocache
+                                    .should_receive(:pull_request)
+                                    .with("rock-core/buildconf", 81_609)
+                                    .and_return(
+                                        { "mergeable" => true },
+                                        { "mergeable" => false }
+                                    )
+                                    .twice
                                 client.pull_requests(url)
 
                                 @pr_model["head"]["sha"] =
@@ -464,13 +482,14 @@ module Autoproj
                             end
 
                             it "invalidates the cache if the base head changed" do
-                                octomock.should_receive(:pull_request)
-                                        .with("rock-core/buildconf", 81_609)
-                                        .and_return(
-                                            { "mergeable" => false },
-                                            { "mergeable" => true }
-                                        )
-                                        .twice
+                                @octomock_nocache
+                                    .should_receive(:pull_request)
+                                    .with("rock-core/buildconf", 81_609)
+                                    .and_return(
+                                        { "mergeable" => false },
+                                        { "mergeable" => true }
+                                    )
+                                    .twice
                                 client.pull_requests(url)
 
                                 @pr_model["base"]["sha"] =

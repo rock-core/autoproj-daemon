@@ -53,21 +53,31 @@ module Autoproj
                     )
                         super(**options)
 
+                        @client = create_octokit_client(cache: true)
+                        @client_nocache = create_octokit_client(cache: false)
+
+                        @pr_commit_strategy = pr_commit_strategy
+                        @mergeability_timeout = mergeability_timeout
+                        @mergeability_cache = {}
+                    end
+
+                    # @api private
+                    #
+                    # Create an octokit client
+                    def create_octokit_client(cache: true, **options)
                         stack = Faraday::RackBuilder.new do |builder|
+                            if cache
+                                builder.use Faraday::HttpCache, serializer: Marshal,
+                                                                shared_cache: false
+                            end
+
                             builder.use Octokit::Middleware::FollowRedirects
                             builder.use Octokit::Response::RaiseError
                             builder.adapter Faraday.default_adapter
                         end
-
-                        options.merge!(middleware: stack).compact!
-
-                        @pr_commit_strategy = pr_commit_strategy
-                        @mergeability_timeout = mergeability_timeout
-
-                        @client = Octokit::Client.new(**options)
-                        @client.auto_paginate = true
-
-                        @mergeability_cache = {}
+                        client = Octokit::Client.new(middleware: stack, **options)
+                        client.auto_paginate = true
+                        client
                     end
 
                     # @param [GitAPI::URL] git_url
@@ -116,7 +126,7 @@ module Autoproj
                         deadline = Time.now + timeout
                         while Time.now < deadline
                             exception_adapter do
-                                info = @client.pull_request(repo_url.path, number)
+                                info = @client_nocache.pull_request(repo_url.path, number)
                                 mergeable = info["mergeable"]
                                 return mergeable unless mergeable.nil?
 
