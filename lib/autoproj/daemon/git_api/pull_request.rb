@@ -7,6 +7,12 @@ module Autoproj
         module GitAPI
             # A PullRequest model representation
             class PullRequest < JSONFacade
+                # List of dependencies resolved from the pull request body
+                #
+                # @return [Array<PullRequest>,nil] the dependencies, or nil if they
+                #   have not yet been computed
+                attr_accessor :dependencies
+
                 # @return [Boolean]
                 def open?
                     @model["state"] == "open"
@@ -89,6 +95,23 @@ module Autoproj
                 # @return [Boolean]
                 def mergeable?
                     @model["mergeable"]
+                end
+
+                # Resolve the list of recursive dependencies for this pull request
+                #
+                # @return [Set<GitAPI::PullRequest>]
+                def recursive_dependencies
+                    result = []
+                    queue = dependencies.dup
+                    until queue.empty?
+                        pr = queue.shift
+                        next if result.include?(pr)
+
+                        result << pr
+                        queue << pr
+                    end
+
+                    result
                 end
             end
         end
