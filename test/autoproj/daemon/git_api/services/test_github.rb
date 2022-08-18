@@ -248,6 +248,12 @@ module Autoproj
                             assert_equal "master", pull_request.base_branch
                         end
 
+                        it "returns the base sha" do
+                            pull_request = client.pull_requests(url).first
+                            assert_equal "f2d41726ba5a0e8abfe61b2c743022b1b6372010",
+                                         pull_request.base_sha
+                        end
+
                         it "returns the head branch" do
                             pull_request = client.pull_requests(url).first
                             assert_equal "saveAllAndCommitFix", pull_request.head_branch
@@ -387,6 +393,62 @@ module Autoproj
                                   .pr_commit_strategy = "head"
                             assert_equal "refs/pull/81609/head",
                                          client.test_branch_name(pull_request)
+                        end
+
+                        describe "the mergeable cache" do
+                            it "caches a positive mergeable flag" do
+                                octomock.should_receive(:pull_request)
+                                        .with("rock-core/buildconf", 81_609)
+                                        .and_return { { "mergeable" => true } }
+                                        .once
+                                client.pull_requests(url)
+
+                                pull_request = client.pull_requests(url).first
+                                assert pull_request.mergeable?
+                            end
+
+                            it "caches a negative mergeable flag" do
+                                octomock.should_receive(:pull_request)
+                                        .with("rock-core/buildconf", 81_609)
+                                        .and_return { { "mergeable" => false } }
+                                        .once
+                                client.pull_requests(url)
+
+                                pull_request = client.pull_requests(url).first
+                                refute pull_request.mergeable?
+                            end
+
+                            it "invalidates the cache if the pull request head changed" do
+                                octomock.should_receive(:pull_request)
+                                        .with("rock-core/buildconf", 81_609)
+                                        .and_return(
+                                            { "mergeable" => true },
+                                            { "mergeable" => false }
+                                        )
+                                        .twice
+                                client.pull_requests(url)
+
+                                @pr_model["head"]["sha"] =
+                                    "4a245c71bec8fc4c74881c664a85b2"
+                                pull_request = client.pull_requests(url).first
+                                refute pull_request.mergeable?
+                            end
+
+                            it "invalidates the cache if the base head changed" do
+                                octomock.should_receive(:pull_request)
+                                        .with("rock-core/buildconf", 81_609)
+                                        .and_return(
+                                            { "mergeable" => false },
+                                            { "mergeable" => true }
+                                        )
+                                        .twice
+                                client.pull_requests(url)
+
+                                @pr_model["base"]["sha"] =
+                                    "4a245c71bec8fc4c74881c664a85b2"
+                                pull_request = client.pull_requests(url).first
+                                assert pull_request.mergeable?
+                            end
                         end
                     end
                 end

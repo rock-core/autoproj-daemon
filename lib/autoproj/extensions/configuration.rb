@@ -112,15 +112,16 @@ module Autoproj
                 **options
             )
                 host = sanitize_string(host).sub(/^www./, "")
-                options = {
+                options_from_args = {
                     "service" => sanitize_string(service),
                     "api_endpoint" => sanitize_string(api_endpoint),
                     "access_token" => access_token.to_s.strip
-                }.merge(options.transform_keys(&:to_s))
+                }
+                options_from_args.compact!
+                options_from_args.delete_if { |_, v| v.empty? }
 
-                options.compact!
-                options.delete_if { |_, v| v.empty? }
-
+                options = options_from_args
+                          .merge(options.transform_keys(&:to_s))
                 set(
                     "daemon_services",
                     daemon_services.merge({ host => options })
