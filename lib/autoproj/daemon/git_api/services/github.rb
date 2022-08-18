@@ -75,13 +75,7 @@ module Autoproj
                     def pull_requests(git_url, **options)
                         exception_adapter do
                             @client.pull_requests(git_url.path, **options).map do |pr|
-                                mergeable =
-                                    if pr["merged_at"]
-                                        false
-                                    else
-                                        pull_request_mergeable?(git_url, pr["number"])
-                                    end
-
+                                mergeable = pull_request_mergeable?(git_url, pr)
                                 pr = pr.to_hash.merge({ "mergeable" => mergeable })
                                 PullRequest.from_ruby_hash(git_url, pr)
                             end
