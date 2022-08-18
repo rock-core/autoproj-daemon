@@ -18,7 +18,10 @@ module Autoproj
                         type: "git",
                         url: "git@github.com:rock-core/buildconf"
                     )
-                    ws.config.daemon_set_service("github.com", "apikey")
+                    ws.config.daemon_set_service(
+                        "github.com", "apikey", nil, nil,
+                        mergeability_timeout: 0.1
+                    )
                     @client = Client.new(ws)
                 end
 
@@ -327,6 +330,10 @@ module Autoproj
                         end
 
                         it "waits for mergeability to be known (positive case)" do
+                            ws.config.daemon_set_service(
+                                "github.com", "apikey", nil, nil,
+                                mergeability_timeout: 5
+                            )
                             octomock.should_receive(:pull_request)
                                     .with("rock-core/buildconf", 81_609)
                                     .times(3).and_return(
@@ -339,6 +346,10 @@ module Autoproj
                         end
 
                         it "waits for mergeability to be known (negative case)" do
+                            ws.config.daemon_set_service(
+                                "github.com", "apikey", nil, nil,
+                                mergeability_timeout: 5
+                            )
                             octomock.should_receive(:pull_request)
                                     .with("rock-core/buildconf", 81_609)
                                     .times(3).and_return(
@@ -416,6 +427,24 @@ module Autoproj
 
                                 pull_request = client.pull_requests(url).first
                                 refute pull_request.mergeable?
+                            end
+
+                            it "tries again a mergeability check that timed out" do
+                                calls = 0
+                                mergeable = nil
+                                octomock.should_receive(:pull_request)
+                                        .with("rock-core/buildconf", 81_609)
+                                        .and_return do
+                                            calls += 1
+                                            { "mergeable" => mergeable }
+                                        end
+                                client.pull_requests(url)
+
+                                last_calls = calls
+                                mergeable = true
+                                pull_request = client.pull_requests(url).first
+                                assert pull_request.mergeable?
+                                assert calls > last_calls
                             end
 
                             it "invalidates the cache if the pull request head changed" do

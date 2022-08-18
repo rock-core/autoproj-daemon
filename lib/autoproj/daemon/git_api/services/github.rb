@@ -38,6 +38,8 @@ module Autoproj
                     #   always the pull request's branch's HEAD.
                     attr_accessor :pr_commit_strategy
 
+                    # @param [Number] mergeability_timeout how long, in seconds,
+                    #   we wait for GitHub to compute a pull request's mergeability
                     # @param [Symbol] pr_commit_strategy If "auto", the merge
                     #   commit used in the CI build will be the GitHub-generated
                     #   merge commit if available, and the HEAD of the pull
@@ -45,7 +47,10 @@ module Autoproj
                     #   the merge commit unless the pull request is a draft.
                     #   If "head", it is always the pull request's branch's
                     #   HEAD.
-                    def initialize(pr_commit_strategy: "auto", **options)
+                    def initialize(
+                        pr_commit_strategy: "auto", mergeability_timeout: 60,
+                        **options
+                    )
                         super(**options)
 
                         stack = Faraday::RackBuilder.new do |builder|
@@ -57,6 +62,7 @@ module Autoproj
                         options.merge!(middleware: stack).compact!
 
                         @pr_commit_strategy = pr_commit_strategy
+                        @mergeability_timeout = mergeability_timeout
 
                         @client = Octokit::Client.new(**options)
                         @client.auto_paginate = true
@@ -110,8 +116,11 @@ module Autoproj
                     #
                     # @param [GitAPI::URL] repo_url the repository URL
                     # @param [Integer] number the pull request number
-                    def pull_request_mergeable?(git_url, number, poll: 0.1)
-                        loop do
+                    def pull_request_query_mergeable(
+                        repo_url, number, poll: 0.1, timeout: @mergeability_timeout
+                    )
+                        deadline = Time.now + timeout
+                        while Time.now < deadline
                             exception_adapter do
                                 info = @client.pull_request(repo_url.path, number)
                                 mergeable = info["mergeable"]
@@ -124,6 +133,13 @@ module Autoproj
                                 sleep(poll)
                             end
                         end
+
+                        Autoproj.warn(
+                            "timed out waiting for for GitHub to compute mergeability "\
+                            "for #{repo_url.path}##{number}, acting as if it is not "\
+                            "mergeable"
+                        )
+                        nil
                     end
 
                     def pull_request_mergeable_cache_key(git_url, pull_request)
