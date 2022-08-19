@@ -14,5 +14,7 @@ end
 
 git_source(:github) { |repo_name| "https://github.com/#{repo_name}" }
 
+gem "autoproj", git: "https://github.com/rock-core/autoproj", branch: "debug_atomic_write"
+
 # Specify your gem's dependencies in autoproj-ci.gemspec
 gemspec
