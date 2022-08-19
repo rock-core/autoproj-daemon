@@ -53,6 +53,20 @@ module Autoproj
                     end
                 end
 
+                describe "creation of the service" do
+                    it "passes the authentication arguments to octokit" do
+                        flexmock(Octokit::Client)
+                            .should_receive(:new)
+                            .with(hsh({ access_token: "apikey" })).once.pass_thru
+                        flexmock(Octokit::Client)
+                            .should_receive(:new)
+                            .with(hsh({ access_token: "apikey" })).once.pass_thru
+
+                        client = Client.new(ws)
+                        client.service_for_host("github.com")
+                    end
+                end
+
                 describe "mock API tests" do
                     attr_reader :octomock, :url, :branch_model, :pr_model
 

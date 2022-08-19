@@ -53,8 +53,8 @@ module Autoproj
                     )
                         super(**options)
 
-                        @client = create_octokit_client(cache: true)
-                        @client_nocache = create_octokit_client(cache: false)
+                        @client = create_octokit_client(cache: true, **options)
+                        @client_nocache = create_octokit_client(cache: false, **options)
 
                         @pr_commit_strategy = pr_commit_strategy
                         @mergeability_timeout = mergeability_timeout
