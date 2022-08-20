@@ -16,8 +16,9 @@ module Autoproj
             attr_reader :client
 
             # @param [GitAPI::Client] client
-            def initialize(client)
+            def initialize(client, pull_requests)
                 @client = client
+                @pull_requests = pull_requests
             end
 
             # @param [String] body
@@ -49,36 +50,28 @@ module Autoproj
                 )
                 return unless url && number
 
+                url = GitAPI::URL.new(url)
                 number = number.to_i
-                client.pull_requests(url).find { |pr| pr.number == number }
+                @pull_requests.find { |pr| pr.git_url == url && pr.number == number }
             rescue GitAPI::NotFound
                 nil
             end
 
-            # @param [Array<GitAPI::PullRequest>] visited
-            # @param [GitAPI::PullRequest] pull_request
-            # @return [Boolean]
-            def visited?(visited, pull_request)
-                visited.any? do |pr|
-                    pr.git_url == pull_request.git_url && pr.number == pull_request.number
-                end
-            end
-
+            # Return the direct dependencies of this pull request
+            #
             # @param [GitAPI::PullRequest] pull_request
             # @return [Array<GitAPI::PullRequest>]
-            def retrieve_dependencies(pull_request, visited = [], deps = [])
-                visited << pull_request
-                dependencies = parse_task_list(pull_request.body).map do |task|
+            def dependencies(pull_request)
+                parse_task_list(pull_request.body).map do |task|
                     task_to_pull_request(task, pull_request)
                 end.compact
+            end
 
-                dependencies.each do |pr|
-                    next if visited?(visited, pr)
-
-                    deps << pr
-                    retrieve_dependencies(pr, visited, deps)
+            # Resolve the dependencies of all pull requests
+            def resolve_dependencies
+                @pull_requests.each do |pr|
+                    pr.dependencies = dependencies(pr)
                 end
-                deps
             end
         end
     end

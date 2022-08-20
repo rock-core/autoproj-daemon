@@ -184,19 +184,26 @@ module Autoproj
                 Autoproj.message "Fetching pull requests from "\
                     "#{filtered_repos.size} repositories..."
 
-                @pull_requests = filtered_repos.flat_map do |pkg|
+                all_pull_requests = filtered_repos.flat_map do |pkg|
                     client.pull_requests(pkg.repo_url, base: pkg.branch, state: "open")
                 end
-                @pull_requests, @pull_requests_stale = @pull_requests.partition do |pr|
+                resolve_pull_request_dependencies(all_pull_requests)
+
+                @pull_requests, @pull_requests_stale = all_pull_requests.partition do |pr|
                     (Time.now.to_date - pr.updated_at.to_date)
                         .round < ws.config.daemon_max_age
                 end
 
-                total_repos = pull_requests.size + pull_requests_stale.size
+                total_repos = all_pull_requests.size
                 Autoproj.message "Tracking #{total_repos} pull requests "\
                     "(#{pull_requests_stale.size} stale)"
 
                 @pull_requests
+            end
+
+            # Resolve dependencies from the pull request bodies
+            def resolve_pull_request_dependencies(pull_requests)
+                OverridesRetriever.new(client, pull_requests).resolve_dependencies
             end
 
             BuildconfBranch = Struct.new :project, :full_path, :pull_id
@@ -347,10 +354,7 @@ module Autoproj
             # @param [GitAPI::PullRequest] pull_request
             # @return [Array<Hash>]
             def overrides_for_pull_request(pull_request)
-                retriever = OverridesRetriever.new(client)
-                all_prs = retriever.retrieve_dependencies(pull_request)
-                all_prs << pull_request
-
+                all_prs = [pull_request] + pull_request.recursive_dependencies
                 all_prs.flat_map do |pr|
                     packages_affected_by_pull_request(pr).map do |pkg|
                         key = if pkg.package_set?

@@ -8,41 +8,23 @@ module Autoproj
     module Daemon
         describe OverridesRetriever do
             # @return [Autoproj::Daemon::OverridesRetriever]
-            attr_reader :retriever
+            let(:retriever) { OverridesRetriever.new(client, @pull_requests) }
 
             # @return [Autoproj::Daemon::GitAPI::Client]
             attr_reader :client
 
             include Autoproj::Daemon::TestHelpers
             before do
-                autoproj_daemon_create_ws(type: "git",
-                                          url: "git@github.com:rock-core/buildconf.git")
+                autoproj_daemon_create_ws(
+                    type: "git", url: "git@github.com:rock-core/buildconf.git"
+                )
 
                 ws.config.daemon_set_service("github.com", "apikey")
                 ws.config.daemon_set_service("gitlab.com", "apikey")
 
                 autoproj_daemon_mock_git_api
                 @client = GitAPI::Client.new(@ws)
-                @retriever = OverridesRetriever.new(client)
-                @pull_requests = {}
-            end
-
-            def add_pull_request(owner, name, number, body, state: "open")
-                autoproj_daemon_add_pull_request(
-                    repo_url: "git@github.com:#{owner}/#{name}",
-                    body: body,
-                    number: number,
-                    state: state
-                )
-            end
-
-            def create_pull_request(owner, name, number, body, state: "open")
-                autoproj_daemon_create_pull_request(
-                    repo_url: "git@github.com:#{owner}/#{name}",
-                    body: body,
-                    number: number,
-                    state: state
-                )
+                @pull_requests = []
             end
 
             describe "#parse_task_list" do
@@ -96,11 +78,12 @@ module Autoproj
                     assert_equal tasks, retriever.parse_task_list(body)
                 end
             end
+
             describe "#task_to_pull_request" do
                 attr_reader :pr
 
                 before do
-                    @pr = add_pull_request("g-arjones._1", "demo.pkg_1", 22, "")
+                    @pr = add_pull_request("g-arjones._1/demo.pkg_1", 22)
                 end
                 it "returns nil if the PR cannot be found" do
                     assert_nil retriever.task_to_pull_request(
@@ -116,142 +99,116 @@ module Autoproj
                     )
                 end
             end
-            describe "#retrieve_dependencies" do
-                it "recursively fetches pull request dependencies" do
-                    body_driver_gps_ublox = <<~EOFBODY
-                        Depends on:
-                        - [ ] tidewise/drivers-orogen-gps_ublox#22
-                    EOFBODY
-                    pr_drivers_gps_ublox = add_pull_request(
-                        "tidewise", "drivers-gps_ublox",
-                        11, body_driver_gps_ublox
-                    )
-
+            describe "#dependencies" do
+                it "resolve the pull request dependencies" do
                     body_driver_orogen_gps_ublox = <<~EOFBODY
                         Depends on:
                         - [ ] rock-core/drivers-orogen-iodrivers_base#33
                         - [ ] tidewise/tidewise.common-package_set#44
                     EOFBODY
                     pr_driver_orogen_gps_ublox = add_pull_request(
-                        "tidewise", "drivers-orogen-gps_ublox",
-                        22, body_driver_orogen_gps_ublox
+                        "tidewise/drivers-orogen-gps_ublox", 22,
+                        body_driver_orogen_gps_ublox
                     )
-
                     pr_driver_orogen_iodrivers_base = add_pull_request(
-                        "rock-core", "drivers-orogen-iodrivers_base",
-                        33, nil
+                        "rock-core/drivers-orogen-iodrivers_base", 33, "iodrivers_base"
                     )
                     pr_package_set = add_pull_request(
-                        "tidewise", "tidewise.common-package_set",
-                        44, nil
+                        "tidewise/tidewise.common-package_set", 44, "package_set"
                     )
 
-                    depends = retriever.retrieve_dependencies(pr_drivers_gps_ublox)
-                    assert_equal [pr_driver_orogen_gps_ublox,
-                                  pr_driver_orogen_iodrivers_base,
+                    depends = retriever.dependencies(pr_driver_orogen_gps_ublox)
+                    assert_equal [pr_driver_orogen_iodrivers_base,
                                   pr_package_set], depends
                 end
-                it "breaks cyclic dependencies" do
-                    body_driver_gps_ublox = <<~EOFBODY
-                        Depends on:
-                        - [ ] tidewise/drivers-orogen-gps_ublox#22
-                    EOFBODY
-                    pr_drivers_gps_ublox = add_pull_request(
-                        "tidewise", "drivers-gps_ublox",
-                        11, body_driver_gps_ublox
-                    )
 
+                it "ignores dependencies that are not within the pull request set" do
                     body_driver_orogen_gps_ublox = <<~EOFBODY
                         Depends on:
-                        - [ ] tidewise/drivers-gps_ublox#11
+                        - [ ] rock-core/drivers-orogen-iodrivers_base#33
+                        - [ ] tidewise/tidewise.common-package_set#44
                     EOFBODY
                     pr_driver_orogen_gps_ublox = add_pull_request(
-                        "tidewise", "drivers-orogen-gps_ublox",
-                        22, body_driver_orogen_gps_ublox
+                        "tidewise/drivers-orogen-gps_ublox", 22,
+                        body_driver_orogen_gps_ublox
+                    )
+                    pr_package_set = add_pull_request(
+                        "tidewise/tidewise.common-package_set", 44, "package_set"
                     )
 
-                    depends = retriever.retrieve_dependencies(pr_drivers_gps_ublox)
-                    assert_equal [pr_driver_orogen_gps_ublox], depends
+                    depends = retriever.dependencies(pr_driver_orogen_gps_ublox)
+                    assert_equal [pr_package_set], depends
                 end
-                it "does not add same PR twice" do
+
+                it "recognizes that pull requests are different if they have "\
+                   "different URLs" do
                     body_driver_gps_ublox = <<~EOFBODY
                         Depends on:
-                        - [ ] tidewise/drivers-orogen-gps_ublox#22
-                        - [ ] rock-core/base-cmake#44
+                        - [ ] https://gitlab.com/tidewise/drivers-orogen-gps_ublox/merge_requests/22
+                        - [ ] https://github.com/tidewise/drivers-orogen-gps_ublox#22
                     EOFBODY
                     pr_drivers_gps_ublox = add_pull_request(
-                        "tidewise", "drivers-gps_ublox",
-                        11, body_driver_gps_ublox
+                        "tidewise/drivers-gps_ublox", 22, body_driver_gps_ublox
+                    )
+                    gitlab = add_pull_request(
+                        "tidewise/drivers-orogen-gps_ublox", 22,
+                        service: "gitlab.com"
+                    )
+                    github = add_pull_request(
+                        "tidewise/drivers-orogen-gps_ublox", 22
                     )
 
-                    body_driver_orogen_gps_ublox = <<~EOFBODY
-                        Depends on:
-                        - [ ] rock-core/base-cmake#44
-                    EOFBODY
-                    pr_driver_orogen_gps_ublox = add_pull_request(
-                        "tidewise", "drivers-orogen-gps_ublox",
-                        22, body_driver_orogen_gps_ublox
-                    )
-
-                    pr_base_cmake = add_pull_request(
-                        "rock-core", "base-cmake",
-                        44, nil
-                    )
-
-                    depends = retriever.retrieve_dependencies(pr_drivers_gps_ublox)
-                    assert_equal [pr_driver_orogen_gps_ublox,
-                                  pr_base_cmake], depends
+                    depends = retriever.dependencies(pr_drivers_gps_ublox)
+                    assert_equal Set[gitlab, github], depends.to_set
                 end
-                it "allows depending on pull requests from different services" do
-                    body_drivers_orogen_gps_ublox = <<~EOFBODY
+
+                it "recognizes that pull requests are different if they have "\
+                   "different numbers" do
+                    body_driver_gps_ublox = <<~EOFBODY
                         Depends on:
-                        - [ ] https://gitlab.com/tidewise/drivers-gps_ublox/merge_requests/22
+                        - [ ] https://github.com/tidewise/drivers-orogen-gps_ublox#22
+                        - [ ] https://github.com/tidewise/drivers-orogen-gps_ublox#23
                     EOFBODY
-                    pr_drivers_orogen_gps_ublox = add_pull_request(
-                        "tidewise", "drivers-orogen-gps_ublox", 11,
-                        body_drivers_orogen_gps_ublox
+                    pr_drivers_gps_ublox = add_pull_request(
+                        "tidewise/drivers-gps_ublox", 22, body_driver_gps_ublox
                     )
+                    pr22 = add_pull_request("tidewise/drivers-orogen-gps_ublox", 22)
+                    pr23 = add_pull_request("tidewise/drivers-orogen-gps_ublox", 23)
 
-                    body_drivers_gps_ublox = <<~EOFBODY
-                        Depends on:
-                        - [ ] https://github.com/tidewise/base-cmake/pull/44
-                    EOFBODY
-
-                    pr_drivers_gps_ublox = autoproj_daemon_add_pull_request(
-                        repo_url: "git@gitlab.com:tidewise/drivers-gps_ublox",
-                        number: 22,
-                        state: "open",
-                        body: body_drivers_gps_ublox
-                    )
-
-                    pr_base_cmake = add_pull_request(
-                        "tidewise", "base-cmake", 44,
-                        nil
-                    )
-
-                    depends = retriever.retrieve_dependencies(pr_drivers_orogen_gps_ublox)
-                    assert_equal [pr_drivers_gps_ublox, pr_base_cmake], depends
+                    depends = retriever.dependencies(pr_drivers_gps_ublox)
+                    assert_equal [pr22, pr23], depends
                 end
+
                 it "allows an exclamation mark in a PR ref" do
                     body_drivers_gps_ublox = <<~EOFBODY
                         Depends on:
                         - [ ] tidewise/drivers-orogen-gps_ublox!22
                     EOFBODY
-                    pr_drivers_gps_ublox = autoproj_daemon_add_pull_request(
-                        repo_url: "git@gitlab.com:tidewise/drivers-gps_ublox",
-                        number: 11,
-                        state: "open",
-                        body: body_drivers_gps_ublox
+                    pr_drivers_gps_ublox = add_pull_request(
+                        "tidewise/drivers-gps_ublox", 11, body_drivers_gps_ublox,
+                        service: "gitlab.com"
                     )
-
-                    pr_drivers_orogen_gps_ublox = autoproj_daemon_add_pull_request(
-                        repo_url: "git@gitlab.com:tidewise/drivers-orogen-gps_ublox",
-                        number: 22,
-                        state: "open"
+                    pr_drivers_orogen_gps_ublox = add_pull_request(
+                        "tidewise/drivers-orogen-gps_ublox", 22, service: "gitlab.com"
                     )
-                    depends = retriever.retrieve_dependencies(pr_drivers_gps_ublox)
+                    depends = retriever.dependencies(pr_drivers_gps_ublox)
                     assert_equal [pr_drivers_orogen_gps_ublox], depends
                 end
+            end
+
+            def add_pull_request(
+                repo_url, number, body = "", state: "open", service: "github.com"
+            )
+                pr = GitAPI::PullRequest.new(
+                    GitAPI::URL.new("git@#{service}:#{repo_url}"),
+                    {
+                        "body" => body,
+                        "number" => number,
+                        "state" => state
+                    }
+                )
+                @pull_requests << pr
+                pr
             end
         end
     end

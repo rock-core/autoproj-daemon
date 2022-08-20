@@ -2,7 +2,6 @@
 
 require "test_helper"
 require "autoproj/daemon/buildbot"
-require "timecop"
 
 # Autoproj's main module
 module Autoproj

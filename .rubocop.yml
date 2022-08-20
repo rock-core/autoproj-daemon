@@ -7,6 +7,9 @@ inherit_mode:
   merge:
   - AllowedNames
 
+AllCops:
+  TargetRubyVersion: "2.5"
+
 Naming/MethodParameterName:
   AllowedNames:
   - ws

@@ -29,15 +29,15 @@ module Autoproj
                 end
 
                 def ==(other)
-                    @model == other.model
+                    @git_url == other.git_url && @model == other.model
                 end
 
                 def eql?(other)
-                    @model.eql?(other.model)
+                    @git_url.eql?(other.git_url) && @model.eql?(other.model)
                 end
 
                 def hash
-                    @model.hash
+                    [@git_url, @model].hash
                 end
 
                 def initialize_copy(_)

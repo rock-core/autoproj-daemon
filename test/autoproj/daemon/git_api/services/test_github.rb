@@ -11,16 +11,18 @@ module Autoproj
         module GitAPI
             describe Client do
                 include Autoproj::Daemon::TestHelpers
-                attr_reader :client
 
                 before do
                     autoproj_daemon_create_ws(
                         type: "git",
                         url: "git@github.com:rock-core/buildconf"
                     )
-                    ws.config.daemon_set_service("github.com", "apikey")
-                    @client = Client.new(ws)
+                    ws.config.daemon_set_service(
+                        "github.com", "apikey", nil, nil,
+                        mergeability_timeout: 0.1
+                    )
                 end
+                let(:client) { Client.new(ws) }
 
                 describe "live API tests" do
                     before do
@@ -51,15 +53,40 @@ module Autoproj
                     end
                 end
 
+                describe "creation of the service" do
+                    it "passes the authentication arguments to octokit" do
+                        flexmock(Octokit::Client)
+                            .should_receive(:new)
+                            .with(hsh({ access_token: "apikey" })).once.pass_thru
+                        flexmock(Octokit::Client)
+                            .should_receive(:new)
+                            .with(hsh({ access_token: "apikey" })).once.pass_thru
+
+                        client = Client.new(ws)
+                        client.service_for_host("github.com")
+                    end
+                end
+
                 describe "mock API tests" do
                     attr_reader :octomock, :url, :branch_model, :pr_model
 
                     let(:client) { Client.new(ws) }
                     before do
                         @url = "git@github.com:rock-core/buildconf"
-                        @octomock = flexmock(Octokit::Client).new_instances
-                        @octomock.should_receive(:rate_limit)
-                                 .and_return(Service::RateLimit.new(1, 0))
+                        @octomock = flexmock("octomock", :on, Octokit::Client)
+                        @octomock_nocache =
+                            flexmock("octomock-nocache", :on, Octokit::Client)
+                        github_mock = flexmock(GitAPI::Services::GitHub).new_instances
+                        github_mock.should_receive(:create_octokit_client)
+                                   .with(hsh(cache: true)).and_return { @octomock }
+                        github_mock.should_receive(:create_octokit_client)
+                                   .with(hsh(cache: false)).and_return(@octomock_nocache)
+                        @octomock
+                            .should_receive(:rate_limit)
+                            .and_return(Service::RateLimit.new(1, 0))
+                        @octomock_nocache
+                            .should_receive(:rate_limit)
+                            .and_return(Service::RateLimit.new(1, 0))
                     end
 
                     def assert_transforms(from, to, *args)
@@ -206,9 +233,17 @@ module Autoproj
                                     File.expand_path("github_pull_request.json", __dir__)
                                 )
                             )
-                            octomock.should_receive(:pull_requests)
-                                    .with("rock-core/buildconf", base: nil, state: nil)
-                                    .and_return([pr_model])
+                            @octomock
+                                .should_receive(:pull_requests)
+                                .with("rock-core/buildconf", base: nil, state: nil)
+                                .and_return([pr_model])
+
+                            @mergeable = true
+                            @octomock_nocache
+                                .should_receive(:pull_request)
+                                .with("rock-core/buildconf", 81_609)
+                                .and_return { { "mergeable" => @mergeable } }
+                                .by_default
                         end
 
                         it "stores repo url" do
@@ -240,6 +275,12 @@ module Autoproj
                         it "returns the base branch" do
                             pull_request = client.pull_requests(url).first
                             assert_equal "master", pull_request.base_branch
+                        end
+
+                        it "returns the base sha" do
+                            pull_request = client.pull_requests(url).first
+                            assert_equal "f2d41726ba5a0e8abfe61b2c743022b1b6372010",
+                                         pull_request.base_sha
                         end
 
                         it "returns the head branch" do
@@ -300,17 +341,176 @@ module Autoproj
                                          client.test_branch_name(pull_request)
                         end
 
-                        it "returns the mergeable status" do
+                        it "returns a non-mergeable PR if the pull_request endpoint "\
+                           "says it is not" do
+                            @mergeable = false
+                            pull_request = client.pull_requests(url).first
+                            refute pull_request.mergeable?
+                        end
+
+                        it "returns a mergeable PR if the pull_request endpoint "\
+                           "says it is" do
+                            @mergeable = true
                             pull_request = client.pull_requests(url).first
                             assert pull_request.mergeable?
+                        end
+
+                        it "waits for mergeability to be known (positive case)" do
+                            ws.config.daemon_set_service(
+                                "github.com", "apikey", nil, nil,
+                                mergeability_timeout: 5
+                            )
+                            @octomock_nocache
+                                .should_receive(:pull_request)
+                                .with("rock-core/buildconf", 81_609)
+                                .times(3).and_return(
+                                    { "mergeable" => nil },
+                                    { "mergeable" => nil },
+                                    { "mergeable" => true }
+                                )
+                            pull_request = client.pull_requests(url).first
+                            assert pull_request.mergeable?
+                        end
+
+                        it "waits for mergeability to be known (negative case)" do
+                            ws.config.daemon_set_service(
+                                "github.com", "apikey", nil, nil,
+                                mergeability_timeout: 5
+                            )
+                            @octomock_nocache
+                                .should_receive(:pull_request)
+                                .with("rock-core/buildconf", 81_609)
+                                .times(3).and_return(
+                                    { "mergeable" => nil },
+                                    { "mergeable" => nil },
+                                    { "mergeable" => false }
+                                )
+                            pull_request = client.pull_requests(url).first
+                            refute pull_request.mergeable?
+                        end
+
+                        it "uses the merge branch by default is mergeable? is true" do
+                            @mergeable = true
+                            pull_request = client.pull_requests(url).first
                             assert_equal "refs/pull/81609/merge",
                                          client.test_branch_name(pull_request)
+                        end
 
-                            pr_model["mergeable"] = false
-                            pull_request = PullRequest.new(URL.new(url), pr_model)
-                            refute pull_request.mergeable?
+                        it "uses the head branch by default if mergeable? is false" do
+                            @mergeable = false
+                            pull_request = client.pull_requests(url).first
                             assert_equal "refs/pull/81609/head",
                                          client.test_branch_name(pull_request)
+                        end
+
+                        it "uses the merge branch if pr_commit_strategy "\
+                           "is set to merge, regardless of mergeable?" do
+                            pull_request = client.pull_requests(url).first
+                            flexmock(pull_request).should_receive(mergeable?: false)
+                            client.service_for_host("github.com")
+                                  .pr_commit_strategy = "merge"
+                            assert_equal "refs/pull/81609/merge",
+                                         client.test_branch_name(pull_request)
+                        end
+
+                        it "uses the head branch if pr_commit_strategy is set to merge, "\
+                           "if the pull request is a draft" do
+                            pull_request = client.pull_requests(url).first
+                            flexmock(pull_request).should_receive(mergeable?: false)
+                            flexmock(pull_request).should_receive(draft?: true)
+                            client.service_for_host("github.com")
+                                  .pr_commit_strategy = "merge"
+                            assert_equal "refs/pull/81609/head",
+                                         client.test_branch_name(pull_request)
+                        end
+
+                        it "uses the head branch if pr_commit_strategy is set to head, "\
+                           "regardless of mergeable?" do
+                            pull_request = client.pull_requests(url).first
+                            flexmock(pull_request).should_receive(mergeable?: true)
+                            client.service_for_host("github.com")
+                                  .pr_commit_strategy = "head"
+                            assert_equal "refs/pull/81609/head",
+                                         client.test_branch_name(pull_request)
+                        end
+
+                        describe "the mergeable cache" do
+                            it "caches a positive mergeable flag" do
+                                @octomock_nocache
+                                    .should_receive(:pull_request)
+                                    .with("rock-core/buildconf", 81_609)
+                                    .and_return { { "mergeable" => true } }
+                                    .once
+                                client.pull_requests(url)
+
+                                pull_request = client.pull_requests(url).first
+                                assert pull_request.mergeable?
+                            end
+
+                            it "caches a negative mergeable flag" do
+                                @octomock_nocache
+                                    .should_receive(:pull_request)
+                                    .with("rock-core/buildconf", 81_609)
+                                    .and_return { { "mergeable" => false } }
+                                    .once
+                                client.pull_requests(url)
+
+                                pull_request = client.pull_requests(url).first
+                                refute pull_request.mergeable?
+                            end
+
+                            it "tries again a mergeability check that timed out" do
+                                calls = 0
+                                mergeable = nil
+                                @octomock_nocache
+                                    .should_receive(:pull_request)
+                                    .with("rock-core/buildconf", 81_609)
+                                    .and_return do
+                                        calls += 1
+                                        { "mergeable" => mergeable }
+                                    end
+                                client.pull_requests(url)
+
+                                last_calls = calls
+                                mergeable = true
+                                pull_request = client.pull_requests(url).first
+                                assert pull_request.mergeable?
+                                assert calls > last_calls
+                            end
+
+                            it "invalidates the cache if the pull request head changed" do
+                                @octomock_nocache
+                                    .should_receive(:pull_request)
+                                    .with("rock-core/buildconf", 81_609)
+                                    .and_return(
+                                        { "mergeable" => true },
+                                        { "mergeable" => false }
+                                    )
+                                    .twice
+                                client.pull_requests(url)
+
+                                @pr_model["head"]["sha"] =
+                                    "4a245c71bec8fc4c74881c664a85b2"
+                                pull_request = client.pull_requests(url).first
+                                refute pull_request.mergeable?
+                            end
+
+                            it "invalidates the cache if the base head changed" do
+                                @octomock_nocache
+                                    .should_receive(:pull_request)
+                                    .with("rock-core/buildconf", 81_609)
+                                    .and_return(
+                                        { "mergeable" => false },
+                                        { "mergeable" => true }
+                                    )
+                                    .twice
+                                client.pull_requests(url)
+
+                                @pr_model["base"]["sha"] =
+                                    "4a245c71bec8fc4c74881c664a85b2"
+                                pull_request = client.pull_requests(url).first
+                                assert pull_request.mergeable?
+                            end
                         end
                     end
                 end

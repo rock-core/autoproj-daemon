@@ -68,18 +68,15 @@ module Autoproj
 
                     all_services.each do |host, params|
                         params = params.merge(config[host].compact) if config[host]
-                        service = params["service"]
-                        endpoint = params["api_endpoint"]
-                        token = params["access_token"]
+                        params = params.dup
+                        service = params.delete("service")
 
                         validate_service_name(service, host)
 
                         begin
                             @services[host] = Services.send(
                                 service,
-                                host: host,
-                                api_endpoint: endpoint,
-                                access_token: token
+                                host: host, **params.transform_keys(&:to_sym)
                             )
                         rescue Autoproj::ConfigError
                             next
@@ -91,6 +88,15 @@ module Autoproj
                 # @return [Boolean]
                 def supports?(url)
                     @services.key?(URL.new(url).host)
+                end
+
+                # @param [String] host the service host, e.g. github.com
+                # @return [Service] the service object
+                # @raise ArgumentError if no service is configured for this host
+                def service_for_host(host)
+                    @services.fetch(host)
+                rescue KeyError
+                    raise ArgumentError, "no service configured for #{host}"
                 end
 
                 # @param [String] url
@@ -201,7 +207,9 @@ module Autoproj
                 end
 
                 # @param [String] ref
-                # @param [GitAPI::PullRequest] pull_request
+                # @param [GitAPI::PullRequest] pull_request the pull request that
+                #   refers to `ref`, used to resolve which Git service we should
+                #   be using to resolve the reference if `ref` is not enough
                 # @return [String]
                 def extract_info_from_pull_request_ref(ref, pull_request)
                     begin
@@ -210,8 +218,7 @@ module Autoproj
                         url = pull_request.git_url.raw
                     end
 
-                    service(url)
-                        .extract_info_from_pull_request_ref(ref, pull_request)
+                    service(url).extract_info_from_pull_request_ref(ref, pull_request)
                 end
 
                 # @param [GitAPI::PullRequest] pull_request

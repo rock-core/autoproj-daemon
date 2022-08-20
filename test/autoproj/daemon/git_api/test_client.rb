@@ -17,11 +17,12 @@ module Autoproj
 
                 # Dummy service
                 class Dummy < Service
-                    attr_reader :access_token
+                    attr_reader :access_token, :some_extra
 
-                    def initialize(**options)
-                        super
+                    def initialize(some_extra: nil, **options)
+                        super(**options)
                         @access_token = options[:access_token]
+                        @some_extra = some_extra
                     end
 
                     def default_endpoint
@@ -123,7 +124,8 @@ module Autoproj
                 describe "#initialize" do
                     it "passes options to services instances" do
                         ws.config.daemon_set_service(
-                            "dummy.com", "apikey", "https://dummy", "dummy"
+                            "dummy.com", "apikey", "https://dummy", "dummy",
+                            some_extra: "option"
                         )
                         @client = Client.new(ws)
 
@@ -132,6 +134,7 @@ module Autoproj
                         assert_equal "dummy.com", service.host
                         assert_equal "apikey", service.access_token
                         assert_equal "https://dummy", service.api_endpoint
+                        assert_equal "option", service.some_extra
 
                         assert client.supports?("git@dummy.com:foo/bar")
                         assert client.services.key?("dummy.com")
