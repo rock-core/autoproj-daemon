@@ -105,10 +105,10 @@ module Autoproj
                     queue = dependencies.dup
                     until queue.empty?
                         pr = queue.shift
-                        next if result.include?(pr)
+                        next if result.include?(pr) || pr == self
 
                         result << pr
-                        queue << pr
+                        queue.concat(pr.dependencies)
                     end
 
                     result

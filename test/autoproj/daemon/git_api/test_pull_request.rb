@@ -11,11 +11,35 @@ module Autoproj
         module GitAPI
             describe PullRequest do
                 describe "#recursive_dependencies" do
-                    it "handles cycles in the pull requests dependencies" do
-                        pr0 = PullRequest.new("", {})
-                        pr1 = PullRequest.new("", {})
-                        pr2 = PullRequest.new("", {})
+                    attr_reader :pr0, :pr1, :pr2
 
+                    before do
+                        @pr0 = PullRequest.new("0", {})
+                        @pr0.dependencies = []
+                        @pr1 = PullRequest.new("1", {})
+                        @pr1.dependencies = []
+                        @pr2 = PullRequest.new("2", {})
+                        @pr2.dependencies = []
+                    end
+
+                    it "returns the direct dependencies" do
+                        pr0.dependencies = [pr1, pr2]
+
+                        assert_equal Set[pr1, pr2], pr0.recursive_dependencies.to_set
+                        assert_equal Set[], pr1.recursive_dependencies.to_set
+                        assert_equal Set[], pr2.recursive_dependencies.to_set
+                    end
+
+                    it "returns the dependencies of dependencies" do
+                        pr0.dependencies = [pr1]
+                        pr1.dependencies = [pr2]
+
+                        assert_equal Set[pr1, pr2], pr0.recursive_dependencies.to_set
+                        assert_equal Set[pr2], pr1.recursive_dependencies.to_set
+                        assert_equal Set[], pr2.recursive_dependencies.to_set
+                    end
+
+                    it "handles cycles in the pull requests dependencies" do
                         pr0.dependencies = [pr1, pr2]
                         pr1.dependencies = [pr2]
                         pr2.dependencies = [pr0]
