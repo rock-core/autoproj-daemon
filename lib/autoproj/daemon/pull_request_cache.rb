@@ -24,7 +24,7 @@ module Autoproj
 
             CachedPullRequest =
                 Struct.new :repo_url, :number, :base_branch,
-                           :head_sha, :draft?, :updated_at, :overrides do
+                           :head_sha, :draft?, :updated_at, :dependencies do
                     def caches_pull_request?(pull_request)
                         git_url == pull_request.git_url && number == pull_request.number
                     end
@@ -42,7 +42,7 @@ module Autoproj
 
             # @param [GitAPI::PullRequest] pull_request
             # @return [CachedPullRequest]
-            def add(pull_request, overrides)
+            def add(pull_request)
                 delete(pull_request)
                 cached = CachedPullRequest.new(
                     pull_request.git_url.raw,
@@ -51,7 +51,7 @@ module Autoproj
                     pull_request.head_sha,
                     pull_request.draft?,
                     pull_request.updated_at,
-                    overrides
+                    dependencies(pull_request)
                 )
                 pull_requests << cached
                 cached
@@ -73,12 +73,28 @@ module Autoproj
             end
 
             # @param [GitAPI::PullRequest] pull_request
+            # @return [Array<Hash>]
+            def dependencies(pull_request)
+                return [] unless pull_request.dependencies
+
+                pull_request.recursive_dependencies.map do |pr|
+                    {
+                        "repository" => pr.git_url.full_path,
+                        "number" => pr.number,
+                        "base_branch" => pr.base_branch,
+                        "head" => pr.head_sha,
+                        "draft" => pr.draft?
+                    }
+                end
+            end
+
+            # @param [GitAPI::PullRequest] pull_request
             # @return [Boolean]
-            def changed?(pull_request, overrides)
+            def changed?(pull_request)
                 found = cached(pull_request)
                 return true unless found
 
-                found.overrides != overrides ||
+                found.dependencies.to_set != dependencies(pull_request).to_set ||
                     ((found.head_sha != pull_request.head_sha ||
                     found.base_branch != pull_request.base_branch ||
                     found.draft? != pull_request.draft?) &&
@@ -108,6 +124,12 @@ module Autoproj
                 @pull_requests =
                     YAML.safe_load(File.read(cache_file),
                                    [Symbol, CachedPullRequest, Time])
+
+                # Initialize dependencies in case the cache file still uses the
+                # old format that had overrides instead. This will cause all non-stale
+                # PRs to be rebuilt.
+                @pull_requests.each { |pr| pr.dependencies ||= [] }
+
                 self
             end
 

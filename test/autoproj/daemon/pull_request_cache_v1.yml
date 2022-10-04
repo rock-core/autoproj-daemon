@@ -1,0 +1,11 @@
+- !ruby/struct:Autoproj::Daemon::PullRequestCache::CachedPullRequest
+  repo_url: https://github.com/rock-core/base-types.git
+  number: 15
+  base_branch: master
+  head_sha: 0a5cee30922d7a435750e0ae2668bb09a46b7cf0
+  draft?: true
+  updated_at: 2022-08-09 01:36:42.718000000 Z
+  overrides:
+  - base/types:
+      remote_branch: refs/pull/15/head
+

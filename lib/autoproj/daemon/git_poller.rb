@@ -338,7 +338,7 @@ module Autoproj
             def create_branch_for_pr(branch_name, pull_request)
                 overrides = overrides_for_pull_request(pull_request)
                 created = commit_and_push_overrides(branch_name, overrides)
-                cache.add(pull_request, overrides)
+                cache.add(pull_request)
                 created
             end
 
@@ -394,12 +394,12 @@ module Autoproj
                 branches.each do |branch|
                     pr = pull_request_by_branch(branch)
                     overrides = overrides_for_pull_request(pr)
-                    next unless cache.changed?(pr, overrides)
+                    next unless cache.changed?(pr)
 
                     Autoproj.message "Updating #{pr.git_url.full_path}##{pr.number}"
                     commit_and_push_overrides(branch.branch_name, overrides)
                     bb.post_pull_request_changes(pr)
-                    cache.add(pr, overrides)
+                    cache.add(pr)
                 end
             end
 
