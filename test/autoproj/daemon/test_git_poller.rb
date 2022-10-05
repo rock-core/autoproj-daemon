@@ -436,7 +436,7 @@ module Autoproj
 
                     expect_restart_and_update
 
-                    @cache.add(pull_request, [])
+                    @cache.add(pull_request)
                     @cache.dump
                     assert_equal 1, @cache.reload.pull_requests.size
 
@@ -631,23 +631,7 @@ module Autoproj
                     add_package("drivers/iodrivers_base", "rock-core",
                                 "drivers-iodrivers_base", branch: "master")
 
-                    overrides = []
-                    overrides << {
-                        "iodrivers_base" => {
-                            "remote_branch" => "refs/pull/12/merge",
-                            "single_branch" => false,
-                            "shallow" => false
-                        }
-                    }
-                    overrides << {
-                        "drivers/iodrivers_base" => {
-                            "remote_branch" => "refs/pull/12/merge",
-                            "single_branch" => false,
-                            "shallow" => false
-                        }
-                    }
-
-                    @cache.add(pr, overrides)
+                    @cache.add(pr)
                     @poller.update_branches
                     @poller.update_pull_requests
 
@@ -656,7 +640,7 @@ module Autoproj
                     expect_no_pull_request_build(any)
                     @poller.trigger_build_if_branch_changed([branch])
                 end
-                it "triggers if overrides changed" do
+                it "triggers if dependencies changed" do
                     branch = autoproj_daemon_add_branch(
                         repo_url: git_url("rock-core", "buildconf"),
                         branch_name: "autoproj/myproject/github.com/"\
@@ -670,25 +654,40 @@ module Autoproj
                         base_branch: "master",
                         head_sha: "abcdef"
                     )
+                    pr2 = autoproj_daemon_add_pull_request(
+                        repo_url: git_url("rock-core", "base-types"),
+                        number: 22,
+                        base_branch: "master",
+                        head_sha: "fghijk"
+                    )
 
+                    add_package("base/types", "rock-core", "base-types", branch: "master")
                     add_package("drivers/iodrivers_base", "rock-core",
                                 "drivers-iodrivers_base", branch: "master")
 
-                    overrides = []
-
-                    @cache.add(pr, overrides)
+                    @cache.add(pr)
                     @poller.update_branches
                     @poller.update_pull_requests
+                    pr.dependencies = [pr2]
 
                     branch_name = "autoproj/myproject/github.com/"\
                                   "rock-core/drivers-iodrivers_base/pulls/12"
-                    expected_overrides = [{
-                        "drivers/iodrivers_base" => {
-                            "remote_branch" => "refs/pull/12/merge",
-                            "single_branch" => false,
-                            "shallow" => false
+                    expected_overrides = [
+                        {
+                            "drivers/iodrivers_base" => {
+                                "remote_branch" => "refs/pull/12/merge",
+                                "single_branch" => false,
+                                "shallow" => false
+                            }
+                        },
+                        {
+                            "base/types" => {
+                                "remote_branch" => "refs/pull/22/merge",
+                                "single_branch" => false,
+                                "shallow" => false
+                            }
                         }
-                    }]
+                    ]
 
                     flexmock(@poller).should_receive(:commit_and_push_overrides)
                                      .with(branch_name, expected_overrides).once
@@ -731,7 +730,7 @@ module Autoproj
                         updated_at: Time.now - 2
                     )
 
-                    @cache.add(pr_cached, overrides)
+                    @cache.add(pr_cached)
                     @poller.update_branches
                     @poller.update_pull_requests
                     branch_name = "autoproj/myproject/github.com/"\
@@ -778,7 +777,7 @@ module Autoproj
                         updated_at: Time.now - 2
                     )
 
-                    @cache.add(pr_cached, overrides)
+                    @cache.add(pr_cached)
                     @poller.update_branches
                     @poller.update_pull_requests
 
@@ -827,7 +826,7 @@ module Autoproj
                         updated_at: Time.now - 2
                     )
 
-                    @cache.add(pr_cached, overrides)
+                    @cache.add(pr_cached)
                     @poller.update_branches
                     @poller.update_pull_requests
 
@@ -865,9 +864,9 @@ module Autoproj
                         head_sha: "abcdef"
                     )
 
-                    @poller.cache.add(one, [])
-                    @poller.cache.add(two, [])
-                    @poller.cache.add(three, [])
+                    @poller.cache.add(one)
+                    @poller.cache.add(two)
+                    @poller.cache.add(three)
                     @poller.pull_requests << three
 
                     assert_equal 3, @poller.cache.pull_requests.size
@@ -887,7 +886,7 @@ module Autoproj
                         head_sha: "abcdef"
                     )
 
-                    @poller.cache.add(pr, [])
+                    @poller.cache.add(pr)
                     @poller.pull_requests_stale << pr
 
                     @poller.update_cache
