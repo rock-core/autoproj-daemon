@@ -385,7 +385,8 @@ module Autoproj
             # @return [void]
             def trigger_build(branch)
                 pr = pull_request_by_branch(branch)
-                bb.post_pull_request_changes(pr)
+                package_names = packages_affected_by_pull_request(pr).map(&:package)
+                bb.post_pull_request_changes(pr, package_names: package_names)
             end
 
             # @param [Array<GitAPI::Branch>] branches
@@ -398,7 +399,8 @@ module Autoproj
 
                     Autoproj.message "Updating #{pr.git_url.full_path}##{pr.number}"
                     commit_and_push_overrides(branch.branch_name, overrides)
-                    bb.post_pull_request_changes(pr)
+                    package_names = packages_affected_by_pull_request(pr).map(&:package)
+                    bb.post_pull_request_changes(pr, package_names: package_names)
                     cache.add(pr)
                 end
             end
