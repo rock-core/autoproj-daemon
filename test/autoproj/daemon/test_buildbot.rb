@@ -50,6 +50,7 @@ module Autoproj
                         "revlink" => "",
                         "when_timestamp" => Time.now.to_s,
                         "properties" => {
+                            package_names: ["foobar"],
                             source_branch: "feature",
                             source_project_id: 1
                         }.to_json
@@ -62,7 +63,11 @@ module Autoproj
                             response
                         end
 
-                    assert bb.post_change(source_branch: "feature", source_project_id: 1)
+                    assert bb.post_change(
+                        package_names: ["foobar"],
+                        source_branch: "feature",
+                        source_project_id: 1
+                    )
                 end
                 it "returns false if command fails" do
                     ws.config.daemon_buildbot_host = "bb-master"
@@ -94,6 +99,7 @@ module Autoproj
                 it "adds buildbot force build paramaters" do
                     now = Time.now
                     flexmock(bb).should_receive(:post_change).with(
+                        package_names: ["foobar"],
                         author: "author",
                         branch: "autoproj/wetpaint/github.com/"\
                                 "tidewise/drivers-gps_ublox/pulls/22",
@@ -120,13 +126,14 @@ module Autoproj
                         updated_at: now
                     )
 
-                    bb.post_pull_request_changes(pr)
+                    bb.post_pull_request_changes(pr, package_names: ["foobar"])
                 end
             end
             describe "#post_mainline_changes" do
                 it "adds buildbot force build paramaters" do
                     now = Time.now
                     flexmock(bb).should_receive(:post_change).with(
+                        package_names: ["foobar"],
                         author: "g-arjones",
                         branch: "main",
                         source_branch: "devel",
@@ -147,7 +154,9 @@ module Autoproj
                         commit_date: now
                     )
 
-                    bb.post_mainline_changes(flexmock, branch, buildconf_branch: "main")
+                    package = flexmock
+                    package.should_receive(:package).and_return("foobar")
+                    bb.post_mainline_changes(package, branch, buildconf_branch: "main")
                 end
             end
         end

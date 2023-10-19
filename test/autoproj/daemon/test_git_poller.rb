@@ -61,10 +61,10 @@ module Autoproj
                     .ordered
             end
 
-            def expect_pull_request_build(pull_request)
+            def expect_pull_request_build(pull_request, package_names: [])
                 flexmock(@poller.bb)
                     .should_receive(:post_pull_request_changes)
-                    .with(pull_request)
+                    .with(pull_request, package_names: package_names)
                     .once
                     .ordered
             end
@@ -692,7 +692,9 @@ module Autoproj
                     flexmock(@poller).should_receive(:commit_and_push_overrides)
                                      .with(branch_name, expected_overrides).once
 
-                    expect_pull_request_build(pr)
+                    expect_pull_request_build(
+                        pr, package_names: ["drivers/iodrivers_base"]
+                    )
                     @poller.trigger_build_if_branch_changed([branch])
                 end
                 it "triggers if PR head sha changed" do
@@ -736,7 +738,9 @@ module Autoproj
                     branch_name = "autoproj/myproject/github.com/"\
                                   "rock-core/drivers-iodrivers_base/pulls/12"
 
-                    expect_pull_request_build(pr)
+                    expect_pull_request_build(
+                        pr, package_names: ["drivers/iodrivers_base"]
+                    )
                     flexmock(@poller).should_receive(:commit_and_push_overrides)
                                      .with(branch_name, overrides).once
 
@@ -784,7 +788,9 @@ module Autoproj
                     branch_name = "autoproj/myproject/github.com/"\
                                   "rock-core/drivers-iodrivers_base/pulls/12"
 
-                    expect_pull_request_build(pr)
+                    expect_pull_request_build(
+                        pr, package_names: ["drivers/iodrivers_base"]
+                    )
                     flexmock(@poller).should_receive(:commit_and_push_overrides)
                                      .with(branch_name, overrides).once
 
@@ -833,7 +839,9 @@ module Autoproj
                     branch_name = "autoproj/myproject/github.com/"\
                                   "rock-core/drivers-iodrivers_base/pulls/12"
 
-                    expect_pull_request_build(pr)
+                    expect_pull_request_build(
+                        pr, package_names: ["drivers/iodrivers_base"]
+                    )
                     flexmock(@poller).should_receive(:commit_and_push_overrides)
                                      .with(branch_name, overrides).once
 

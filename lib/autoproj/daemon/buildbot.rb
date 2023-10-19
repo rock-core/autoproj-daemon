@@ -47,13 +47,15 @@ module Autoproj
             # Publish a change indicating that a pull request was modified
             #
             # @param [GitAPI::PullRequest] pull_request
+            # @param [Array<String>] package_names
             # @return [Boolean] true if the posting was successful, false otherwise
-            def post_pull_request_changes(pull_request)
+            def post_pull_request_changes(pull_request, package_names: [])
                 branch_name = GitPoller.branch_name_by_pull_request(
                     @project, pull_request
                 )
 
                 post_change(
+                    package_names: package_names,
                     author: pull_request.author,
                     branch: branch_name,
                     source_branch: pull_request.head_branch,
@@ -70,11 +72,12 @@ module Autoproj
 
             # Publish changes that happened to a mainline branch
             #
-            # @param [PackageRepository] _package
+            # @param [PackageRepository] package
             # @param [GitAPI::Branch] remote_branch
             # @return [Boolean]
-            def post_mainline_changes(_package, remote_branch, buildconf_branch: "master")
+            def post_mainline_changes(package, remote_branch, buildconf_branch: "master")
                 post_change(
+                    package_names: [package.package],
                     # Codebase is a single codebase - i.e. single repo, but
                     # tracked across forks
                     author: remote_branch.commit_author,
@@ -92,6 +95,7 @@ module Autoproj
 
             # @return [Boolean]
             def post_change(
+                package_names: [],
                 author: "",
                 branch: "master",
                 source_branch: "master",
@@ -110,6 +114,7 @@ module Autoproj
                 request = Net::HTTP::Post.new(uri.request_uri)
 
                 properties = {
+                    package_names: package_names,
                     source_branch: source_branch,
                     source_project_id: source_project_id
                 }.compact
