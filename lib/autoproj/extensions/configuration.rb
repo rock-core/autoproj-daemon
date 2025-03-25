@@ -30,6 +30,13 @@ module Autoproj
                 get("daemon_polling_period", 60)
             end
 
+            # Whether PRs should be rebuilt when the buildconf is modified
+            #
+            # @return [Boolean]
+            def daemon_rebuild_prs_on_buildconf_change?
+                get("daemon_rebuild_prs_on_buildconf_change", true)
+            end
+
             # The buildbot host/ip
             #
             # @return [String]

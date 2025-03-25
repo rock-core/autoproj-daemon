@@ -45,6 +45,8 @@ module Autoproj
                     end
                 @project = [@ws.config.daemon_project, subsystem].compact.join("_")
                 @project = "daemon" if @project.empty?
+                @rebuild_prs_on_buildconf_change =
+                    @ws.config.daemon_rebuild_prs_on_buildconf_change?
 
                 unless @project =~ /^[A-Za-z0-9_\-.]+$/
                     raise Autoproj::ConfigError, "Invalid project name"
@@ -169,7 +171,8 @@ module Autoproj
                     cache,
                     ws,
                     updater,
-                    project: @project
+                    project: @project,
+                    clear_cache_on_buildconf_change: rebuild_prs_on_buildconf_change?
                 )
             end
 

@@ -66,7 +66,8 @@ module Autoproj
             # @param [Autoproj::Workspace] workspace Current workspace
             # @param [Autoproj::Daemon::WorkspaceUpdater] workspace Current workspace
             def initialize(
-                buildconf, client, packages, cache, workspace, updater, project: "daemon"
+                buildconf, client, packages, cache, workspace, updater,
+                project: "daemon", clear_cache_on_buildconf_change: true
             )
                 @updater = updater
                 @project = project.to_str
@@ -82,6 +83,12 @@ module Autoproj
                 @main = @buildconf.autobuild
                 @importer = @main.importer
                 @cache = cache
+                @clear_cache_on_buildconf_change =
+                    clear_cache_on_buildconf_change
+            end
+
+            def clear_cache_on_buildconf_change?
+                @clear_cache_on_buildconf_change
             end
 
             # @return [void]
@@ -172,7 +179,10 @@ module Autoproj
                 pkgs_changed = trigger_build_if_packages_changed
                 buildconf_changed = trigger_build_if_buildconf_changed
 
-                clear_and_dump_cache if buildconf_changed
+                if buildconf_changed && clear_cache_on_buildconf_change?
+                    clear_and_dump_cache 
+                end
+
                 return unless pkgs_changed || buildconf_changed
 
                 updater.restart_and_update
