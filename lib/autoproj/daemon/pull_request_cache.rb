@@ -115,6 +115,14 @@ module Autoproj
                 File.join(ws.dot_autoproj_dir, CACHE_FILE)
             end
 
+            def load_yaml(contents, permitted_classes = [])
+                if Gem::Version.new(Psych::VERSION) >= Gem::Version.new("3.1.0")
+                    YAML.safe_load(contents, permitted_classes: permitted_classes)
+                else
+                    YAML.safe_load(contents, permitted_classes)
+                end
+            end
+
             # @return [PullRequestCache]
             def reload
                 unless File.exist?(cache_file)
@@ -122,8 +130,8 @@ module Autoproj
                     return self
                 end
                 @pull_requests =
-                    YAML.safe_load(File.read(cache_file),
-                                   [Symbol, CachedPullRequest, Time])
+                    load_yaml(File.read(cache_file),
+                              [Symbol, CachedPullRequest, Time])
 
                 # Initialize dependencies in case the cache file still uses the
                 # old format that had overrides instead. This will cause all non-stale
